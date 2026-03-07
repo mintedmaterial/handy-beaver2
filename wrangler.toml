@@ -24,5 +24,8 @@ ENVIRONMENT = "development"
 # - SQUARE_ACCESS_TOKEN (for payments)
 # - GEMINI_API_KEY (for AI visualizer)
 
-# Custom domain (later)
-# routes = [{ pattern = "thehandybeaver.com", custom_domain = true }]
+# Custom domain
+routes = [
+  { pattern = "handybeaver.co", custom_domain = true },
+  { pattern = "www.handybeaver.co", custom_domain = true }
+]
