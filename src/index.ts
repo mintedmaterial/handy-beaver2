@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { getCookie } from 'hono/cookie';
 import { siteConfig } from '../config/site.config';
 
 // Pages
@@ -11,11 +12,21 @@ import { contactPage } from './pages/contact';
 import { blogPage, blogPostPage } from './pages/blog';
 import { visualizePage } from './pages/visualize';
 import { agentPage } from './pages/agent';
+import { portalPage, loginPage, adminLoginPage } from './pages/portal';
+
+// Routes
+import { authRoutes } from './routes/auth';
+
+// Auth
+import { getSession, requireCustomer, requireAdmin } from './lib/auth';
 
 type Bindings = {
   DB: D1Database;
   IMAGES: R2Bucket;
   ENVIRONMENT: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  RESEND_API_KEY?: string;
   SQUARE_ACCESS_TOKEN?: string;
   GEMINI_API_KEY?: string;
 };
@@ -38,23 +49,48 @@ app.get('/visualize', visualizePage);
 app.get('/agent', agentPage);
 app.get('/chat', agentPage); // Alias
 
-// Placeholder pages (TODO: implement)
-app.get('/portal', (c) => c.redirect('/login'));
-app.get('/login', (c) => {
+// Auth pages
+app.get('/login', loginPage);
+app.get('/admin/login', adminLoginPage);
+
+// Protected portal (check session manually for redirect)
+app.get('/portal', async (c) => {
+  const token = getCookie(c, 'hb_session');
+  
+  if (!token) {
+    return c.redirect('/login');
+  }
+  
+  const customer = await getSession(c.env.DB, token);
+  
+  if (!customer) {
+    return c.redirect('/login?error=invalid');
+  }
+  
+  c.set('customer', customer);
+  return portalPage(c);
+});
+
+// Admin dashboard placeholder
+app.get('/admin', requireAdmin, (c) => {
+  const admin = c.get('admin');
   return c.html(`
     <!DOCTYPE html>
-    <html><head><title>Login - ${siteConfig.business.name}</title></head>
+    <html><head><title>Admin - ${siteConfig.business.name}</title></head>
     <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #2C1810;">
-      <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px;">
-        <h1 style="color: #8B4513;">Customer Portal</h1>
-        <p style="color: #666;">Portal coming soon! For now, <a href="/contact" style="color: #8B4513;">contact us</a> directly.</p>
-        <a href="/" style="display: inline-block; margin-top: 1rem; color: #8B4513;">← Back to Home</a>
+      <div style="background: white; padding: 2rem; border-radius: 12px; text-align: center; max-width: 500px;">
+        <img src="${admin.avatar_url || '/api/assets/beaver-avatar.png'}" style="width: 80px; height: 80px; border-radius: 50%; margin-bottom: 1rem;">
+        <h1 style="color: #8B4513;">Welcome, ${admin.name || admin.github_username}!</h1>
+        <p style="color: #666;">Admin dashboard coming soon. For now, manage via Discord.</p>
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center;">
+          <a href="/" style="color: #8B4513;">← Back to Site</a>
+          <a href="/api/auth/logout" style="color: #666;">Logout</a>
+        </div>
       </div>
     </body>
     </html>
   `);
 });
-app.get('/chat', (c) => c.redirect('/contact'));
 
 // Health check
 app.get('/health', (c) => {
@@ -68,6 +104,9 @@ app.get('/health', (c) => {
 // ============ API ROUTES ============
 
 const api = new Hono<{ Bindings: Bindings }>();
+
+// Mount auth routes
+api.route('/auth', authRoutes);
 
 // Serve assets from R2
 api.get('/assets/:key{.+}', async (c) => {
@@ -90,23 +129,24 @@ api.post('/contact', async (c) => {
   try {
     const formData = await c.req.formData();
     const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
+    const email = (formData.get('email') as string)?.toLowerCase().trim();
     const phone = formData.get('phone') as string;
     const service_type = formData.get('service_type') as string;
     const description = formData.get('description') as string;
     const address = formData.get('address') as string;
     const promo = formData.get('promo') as string;
     
-    // Save to D1
-    const result = await c.env.DB.prepare(`
-      INSERT INTO customers (email, name, phone, address, created_at, updated_at)
-      VALUES (?, ?, ?, ?, unixepoch(), unixepoch())
+    // Save customer to D1
+    await c.env.DB.prepare(`
+      INSERT INTO customers (email, name, phone, address, status, promo_code, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'lead', ?, unixepoch(), unixepoch())
       ON CONFLICT(email) DO UPDATE SET 
         name = excluded.name,
-        phone = excluded.phone,
+        phone = COALESCE(excluded.phone, customers.phone),
         address = COALESCE(excluded.address, customers.address),
+        promo_code = COALESCE(excluded.promo_code, customers.promo_code),
         updated_at = unixepoch()
-    `).bind(email, name, phone, address).run();
+    `).bind(email, name, phone, address, promo || null).run();
     
     // Get customer ID
     const customer = await c.env.DB.prepare(
@@ -129,7 +169,7 @@ api.post('/contact', async (c) => {
     
     // TODO: Upload photos to R2
     // TODO: Send Discord notification
-    // TODO: Send confirmation email
+    // TODO: Send confirmation email with login link
     
     return c.html(`
       <!DOCTYPE html>
@@ -142,6 +182,9 @@ api.post('/contact', async (c) => {
             We've received your quote request and will get back to you within 24 hours.
           </p>
           ${promo ? '<p style="color: #D2691E; font-weight: bold;">✓ Your discount has been applied!</p>' : ''}
+          <p style="color: #666; font-size: 0.9rem; margin: 1rem 0;">
+            Check your email (${email}) for a link to access your customer portal.
+          </p>
           <a href="/" style="display: inline-block; margin-top: 1rem; background: #8B4513; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none;">
             Back to Home
           </a>
@@ -155,25 +198,18 @@ api.post('/contact', async (c) => {
   }
 });
 
-// Auth: Send magic link
-api.post('/auth/login', async (c) => {
-  const { email } = await c.req.json();
-  // TODO: Generate magic token, send email via Resend
-  return c.json({ success: true, message: 'Magic link sent' });
-});
-
-// Auth: Verify magic link
-api.get('/auth/verify', async (c) => {
-  const token = c.req.query('token');
-  // TODO: Verify token, create session
-  return c.json({ success: true });
-});
-
-// Bookings
+// Bookings (protected)
 api.get('/bookings', async (c) => {
+  const token = getCookie(c, 'hb_session');
+  if (!token) return c.json({ error: 'Unauthorized' }, 401);
+  
+  const customer = await getSession(c.env.DB, token);
+  if (!customer) return c.json({ error: 'Unauthorized' }, 401);
+  
   const bookings = await c.env.DB.prepare(
-    'SELECT * FROM bookings ORDER BY created_at DESC LIMIT 50'
-  ).all();
+    'SELECT * FROM bookings WHERE customer_id = ? ORDER BY created_at DESC'
+  ).bind(customer.id).all();
+  
   return c.json(bookings);
 });
 
@@ -183,18 +219,37 @@ api.post('/bookings', async (c) => {
   return c.json({ success: true, id: 1 });
 });
 
-// Messages
-api.get('/messages/:bookingId', async (c) => {
-  const bookingId = c.req.param('bookingId');
+// Messages (protected)
+api.get('/messages', async (c) => {
+  const token = getCookie(c, 'hb_session');
+  if (!token) return c.json({ error: 'Unauthorized' }, 401);
+  
+  const customer = await getSession(c.env.DB, token);
+  if (!customer) return c.json({ error: 'Unauthorized' }, 401);
+  
   const messages = await c.env.DB.prepare(
-    'SELECT * FROM messages WHERE booking_id = ? ORDER BY created_at ASC'
-  ).bind(bookingId).all();
+    'SELECT * FROM messages WHERE customer_id = ? ORDER BY created_at DESC LIMIT 50'
+  ).bind(customer.id).all();
+  
   return c.json(messages);
 });
 
 api.post('/messages', async (c) => {
-  const data = await c.req.json();
-  // TODO: Save message, trigger AI response if needed
+  const token = getCookie(c, 'hb_session');
+  if (!token) return c.json({ error: 'Unauthorized' }, 401);
+  
+  const customer = await getSession(c.env.DB, token);
+  if (!customer) return c.json({ error: 'Unauthorized' }, 401);
+  
+  const { content, booking_id } = await c.req.json();
+  
+  await c.env.DB.prepare(`
+    INSERT INTO messages (customer_id, booking_id, sender, content, created_at)
+    VALUES (?, ?, 'customer', ?, unixepoch())
+  `).bind(customer.id, booking_id || null, content).run();
+  
+  // TODO: Trigger AI response or notify owner
+  
   return c.json({ success: true });
 });
 

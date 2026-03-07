@@ -13,9 +13,16 @@ database_id = "20a0e8d8-37eb-4445-af1a-3e295d724abd"
 binding = "IMAGES"
 bucket_name = "handy-beaver-images"
 
-# Environment Variables (secrets via wrangler secret)
+# Environment Variables
 [vars]
 ENVIRONMENT = "development"
+
+# Secrets (set via wrangler secret put):
+# - GITHUB_CLIENT_ID
+# - GITHUB_CLIENT_SECRET
+# - RESEND_API_KEY (optional, for email)
+# - SQUARE_ACCESS_TOKEN (for payments)
+# - GEMINI_API_KEY (for AI visualizer)
 
 # Custom domain (later)
 # routes = [{ pattern = "thehandybeaver.com", custom_domain = true }]
