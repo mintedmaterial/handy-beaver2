@@ -10,6 +10,7 @@ import { aboutPage } from './pages/about';
 import { contactPage } from './pages/contact';
 import { blogPage, blogPostPage } from './pages/blog';
 import { visualizePage } from './pages/visualize';
+import { agentPage } from './pages/agent';
 
 type Bindings = {
   DB: D1Database;
@@ -34,6 +35,8 @@ app.get('/contact', contactPage);
 app.get('/blog', blogPage);
 app.get('/blog/:slug', blogPostPage);
 app.get('/visualize', visualizePage);
+app.get('/agent', agentPage);
+app.get('/chat', agentPage); // Alias
 
 // Placeholder pages (TODO: implement)
 app.get('/portal', (c) => c.redirect('/login'));
