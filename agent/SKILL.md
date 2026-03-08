@@ -257,6 +257,119 @@ Configure webhook URL in worker secrets: `DISCORD_WEBHOOK_NOTIFICATIONS`
 
 ---
 
+---
+
+## Facebook Group Lead Monitoring (Browser-Based)
+
+Since Facebook's Graph API restricts group access, we use browser automation (Puppeteer/Playwright) similar to Twitter automation.
+
+### Target Groups (SE Oklahoma)
+
+Configure in `/home/flo/handy-beaver/config/facebook-groups.json`:
+
+```json
+{
+  "groups": [
+    { "id": "123456789", "name": "Idabel Community", "check_interval_min": 30 },
+    { "id": "987654321", "name": "SE Oklahoma Buy/Sell/Trade", "check_interval_min": 30 }
+  ]
+}
+```
+
+### Keyword Detection
+
+Posts matching these patterns trigger lead detection:
+
+**High Intent:**
+- "looking for", "need someone", "recommendations for", "anyone know"
+- Combined with: flooring, trim, deck, handyman, carpenter, repair, maintenance
+
+**Service Keywords:**
+- flooring, floors, LVP, hardwood, tile, carpet
+- trim, baseboards, crown molding, casing
+- deck, porch, staining, boards
+- handyman, odd jobs, home repair, maintenance
+- carpenter, finish work, woodwork
+
+### Response Templates
+
+**Generic (rotate):**
+```
+Hey! I do this kind of work in SE Oklahoma — flooring, trim, deck repair, maintenance. Check out handybeaver.co for pricing and a free quote! 🦫
+```
+
+**Flooring-specific:**
+```
+I handle flooring! LVP, hardwood, tile — $175/half day or $300/full day, you just cover materials. More at handybeaver.co 🦫
+```
+
+**Trim/Carpentry:**
+```
+Finish carpentry is my specialty! Crown, base, casing, built-ins. Based in SE Oklahoma. See handybeaver.co for details 🦫
+```
+
+### Lead Logging
+
+When a lead is detected:
+1. Log to D1 `leads` table (post URL, user, content, timestamp)
+2. Notify Discord webhook with post preview
+3. Track if response was sent
+
+### Running the Monitor
+
+```bash
+# On Minte's PC (logged into Facebook)
+ssh Minte@100.84.133.97 "cd C:\Users\Minte\handy-beaver-automation && node monitor-groups.js"
+```
+
+---
+
+## Knowledge Base (Quick Reference)
+
+### Services Offered
+
+| Service | Description |
+|---------|-------------|
+| **Trim Carpentry** | Crown molding, baseboards, door/window casing, built-ins |
+| **Flooring** | LVP, hardwood, tile, carpet removal, subfloor repair |
+| **Deck Work** | Repair, board replacement, staining, sealing |
+| **General Maintenance** | Odd jobs, repairs, honey-do lists |
+
+### Pricing
+
+| Type | Half Day (≤6 hrs) | Full Day |
+|------|-------------------|----------|
+| **Labor** | $175 | $300 |
+| **Helper** | $100 | $225 |
+
+**Note:** Customer pays all materials, consumables, and equipment rental.
+
+### Service Area
+
+Southeast Oklahoma — roughly within 1 hour of Idabel.
+
+### Scheduling
+
+- Check `/api/admin/schedule` for availability
+- Typical lead time: 1-2 weeks
+- Emergency/rush jobs: case-by-case
+
+### Common Questions
+
+**Q: Do you provide materials?**
+A: No, customer purchases materials. I can advise on what's needed and quantities.
+
+**Q: What's included in the rate?**
+A: Labor and basic tools. Specialty tools/equipment rental is additional.
+
+**Q: Do you do free estimates?**
+A: Yes! Submit a request at handybeaver.co/contact or message me directly.
+
+**Q: What areas do you serve?**
+A: Southeast Oklahoma — Idabel, Broken Bow, Hugo, Antlers, and surrounding areas.
+
+---
+
 ## Environment Variables
 
 ```bash
