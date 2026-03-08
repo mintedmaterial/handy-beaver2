@@ -24,6 +24,8 @@ import { facebookPosts } from './routes/facebook-posts';
 import { facebookSession } from './routes/facebook-session';
 import { facebookScraper } from './routes/facebook-scraper';
 import { portfolioApi } from './routes/portfolio';
+import { paymentsApi } from './routes/payments';
+import { paymentPage } from './pages/payment';
 
 // Auth
 import { getSession, requireCustomer, requireAdmin } from './lib/auth';
@@ -58,6 +60,9 @@ app.get('/agent', agentPage);
 app.get('/chat', agentPage); // Alias
 app.get('/gallery', galleryPage);
 app.get('/gallery/:slug', galleryCategoryPage);
+
+// Payment page (public - anyone with link can pay)
+app.get('/pay/:invoice_id', paymentPage);
 
 // Auth pages
 app.get('/login', loginPage);
@@ -139,6 +144,7 @@ api.route('/facebook', facebookScraper);
 // Mount portfolio/gallery API routes
 api.route('/images/portfolio', portfolioApi);
 api.route('/portfolio', portfolioApi);
+api.route('/payments', paymentsApi);
 
 // Serve assets from R2
 api.get('/assets/:key{.+}', async (c) => {
