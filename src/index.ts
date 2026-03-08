@@ -17,6 +17,7 @@ import { adminDashboard, adminCustomers, adminQuotes, adminMessages } from './pa
 
 // Routes
 import { authRoutes } from './routes/auth';
+import { adminApi } from './routes/admin-api';
 
 // Auth
 import { getSession, requireCustomer, requireAdmin } from './lib/auth';
@@ -106,6 +107,9 @@ const api = new Hono<{ Bindings: Bindings }>();
 
 // Mount auth routes
 api.route('/auth', authRoutes);
+
+// Mount admin API routes
+api.route('/admin', adminApi);
 
 // Serve assets from R2
 api.get('/assets/:key{.+}', async (c) => {

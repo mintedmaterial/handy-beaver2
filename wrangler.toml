@@ -18,11 +18,20 @@ bucket_name = "handy-beaver-images"
 ENVIRONMENT = "development"
 
 # Secrets (set via wrangler secret put):
-# - GITHUB_CLIENT_ID
-# - GITHUB_CLIENT_SECRET
-# - RESEND_API_KEY (optional, for email)
+# - GITHUB_CLIENT_ID ✓
+# - GITHUB_CLIENT_SECRET ✓
+# - ADMIN_API_KEY (for agent API access)
+# - DISCORD_WEBHOOK_NOTIFICATIONS (for alerts)
+# - OWNER_EMAIL (forward emails to)
 # - SQUARE_ACCESS_TOKEN (for payments)
 # - GEMINI_API_KEY (for AI visualizer)
+# - FACEBOOK_PAGE_ID
+# - FACEBOOK_PAGE_ACCESS_TOKEN
+
+# Email routing (requires email routing enabled on domain)
+# send_email = [
+#   { name = "EMAIL_HANDLER" }
+# ]
 
 # Custom domain
 routes = [
