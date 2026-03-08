@@ -238,11 +238,10 @@ export const layout = (title: string, content: string, activeNav?: string) => `
     <ul class="nav-links">
       <li><a href="/" ${activeNav === 'home' ? 'style="color: var(--secondary)"' : ''}>Home</a></li>
       <li><a href="/services" ${activeNav === 'services' ? 'style="color: var(--secondary)"' : ''}>Services</a></li>
+      <li><a href="/gallery" ${activeNav === 'gallery' ? 'style="color: var(--secondary)"' : ''}>Gallery</a></li>
       <li><a href="/about" ${activeNav === 'about' ? 'style="color: var(--secondary)"' : ''}>About</a></li>
-      <li><a href="/blog" ${activeNav === 'blog' ? 'style="color: var(--secondary)"' : ''}>Blog</a></li>
       <li><a href="/contact" ${activeNav === 'contact' ? 'style="color: var(--secondary)"' : ''}>Contact</a></li>
       <li><a href="/visualize" ${activeNav === 'visualize' ? 'style="color: var(--secondary)"' : ''}>AI Visualizer</a></li>
-      <li><a href="/agent" ${activeNav === 'agent' ? 'style="color: var(--secondary)"' : ''}>Chat Agent</a></li>
       <li><a href="/portal" class="btn btn-primary" style="padding: 0.5rem 1rem">Customer Portal</a></li>
     </ul>
   </nav>

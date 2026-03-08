@@ -14,12 +14,14 @@ import { visualizePage } from './pages/visualize';
 import { agentPage } from './pages/agent';
 import { portalPage, loginPage, adminLoginPage } from './pages/portal';
 import { adminDashboard, adminCustomers, adminQuotes, adminMessages } from './pages/admin';
+import { galleryPage, galleryCategoryPage } from './pages/gallery';
 
 // Routes
 import { authRoutes } from './routes/auth';
 import { adminApi } from './routes/admin-api';
 import { facebookMonitor } from './routes/facebook-monitor';
 import { facebookPosts } from './routes/facebook-posts';
+import { portfolioApi } from './routes/portfolio';
 
 // Auth
 import { getSession, requireCustomer, requireAdmin } from './lib/auth';
@@ -52,6 +54,8 @@ app.get('/blog/:slug', blogPostPage);
 app.get('/visualize', visualizePage);
 app.get('/agent', agentPage);
 app.get('/chat', agentPage); // Alias
+app.get('/gallery', galleryPage);
+app.get('/gallery/:slug', galleryCategoryPage);
 
 // Auth pages
 app.get('/login', loginPage);
@@ -116,6 +120,10 @@ api.route('/admin', adminApi);
 // Mount Facebook monitoring routes
 api.route('/facebook', facebookMonitor);
 api.route('/facebook', facebookPosts);
+
+// Mount portfolio/gallery API routes
+api.route('/images/portfolio', portfolioApi);
+api.route('/portfolio', portfolioApi);
 
 // Serve assets from R2
 api.get('/assets/:key{.+}', async (c) => {
