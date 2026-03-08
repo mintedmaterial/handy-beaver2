@@ -9,7 +9,10 @@
     "db:create": "wrangler d1 create handy-beaver-db",
     "db:migrate": "wrangler d1 execute handy-beaver-db --file=./schema.sql",
     "db:migrate:local": "wrangler d1 execute handy-beaver-db --local --file=./schema.sql",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "repository": {
     "type": "git",
