@@ -204,10 +204,9 @@ portfolioApi.get('/r2-list', async (c) => {
 });
 
 /**
- * Delete portfolio image
+ * Delete portfolio image from R2
  */
 portfolioApi.delete('/:category/:filename', async (c) => {
-  // TODO: Add admin auth middleware
   const category = c.req.param('category');
   const filename = c.req.param('filename');
   
@@ -215,4 +214,142 @@ portfolioApi.delete('/:category/:filename', async (c) => {
   await c.env.IMAGES.delete(key);
   
   return c.json({ success: true, deleted: key });
+});
+
+// ============ CATEGORY CRUD ============
+
+/**
+ * Create category
+ */
+portfolioApi.post('/categories', async (c) => {
+  const { name, icon, description } = await c.req.json();
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Get max order
+  const maxOrder = await c.env.DB.prepare(
+    'SELECT MAX(display_order) as max FROM portfolio_categories'
+  ).first<{ max: number }>();
+  
+  await c.env.DB.prepare(`
+    INSERT INTO portfolio_categories (name, slug, icon, description, display_order, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(name, slug, icon || '📁', description || '', (maxOrder?.max || 0) + 1, now).run();
+  
+  return c.json({ success: true, slug });
+});
+
+/**
+ * Delete category
+ */
+portfolioApi.delete('/categories/:id', async (c) => {
+  const id = c.req.param('id');
+  
+  // Uncategorize images
+  await c.env.DB.prepare(
+    'UPDATE portfolio_images SET category_id = NULL WHERE category_id = ?'
+  ).bind(id).run();
+  
+  // Delete category
+  await c.env.DB.prepare(
+    'DELETE FROM portfolio_categories WHERE id = ?'
+  ).bind(id).run();
+  
+  return c.json({ success: true });
+});
+
+// ============ IMAGE CRUD WITH DB ============
+
+/**
+ * Upload image (stores in R2 + DB)
+ */
+portfolioApi.post('/images/upload', async (c) => {
+  const formData = await c.req.formData();
+  const file = formData.get('file') as unknown;
+  const categoryId = formData.get('category') as string;
+  const title = formData.get('title') as string || 'Untitled';
+  const description = formData.get('description') as string || '';
+  const mediaType = formData.get('media_type') as string || 'image';
+  const isBeforeAfter = formData.get('is_before_after') === 'on';
+  const baType = formData.get('ba_type') as string;
+  
+  if (!file || typeof file === 'string') {
+    return c.json({ error: 'No file provided' }, 400);
+  }
+  
+  const fileObj = file as { name: string; type: string; arrayBuffer: () => Promise<ArrayBuffer> };
+  const ext = fileObj.name.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  
+  // Get category slug
+  let categorySlug = 'uncategorized';
+  if (categoryId) {
+    const cat = await c.env.DB.prepare(
+      'SELECT slug FROM portfolio_categories WHERE id = ?'
+    ).bind(categoryId).first<{ slug: string }>();
+    if (cat) categorySlug = cat.slug;
+  }
+  
+  const key = `portfolio/${categorySlug}/${filename}`;
+  
+  // Upload to R2
+  const buffer = await fileObj.arrayBuffer();
+  await c.env.IMAGES.put(key, buffer, {
+    httpMetadata: { contentType: fileObj.type },
+  });
+  
+  const url = `/api/images/portfolio/${categorySlug}/${filename}`;
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Save to DB
+  const result = await c.env.DB.prepare(`
+    INSERT INTO portfolio_images (category_id, title, description, url, filename, media_type, is_before_after, ba_type, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    categoryId || null,
+    title,
+    description,
+    url,
+    filename,
+    mediaType,
+    isBeforeAfter ? 1 : 0,
+    baType || null,
+    now
+  ).run();
+  
+  return c.json({
+    success: true,
+    id: result.meta.last_row_id,
+    url,
+    key,
+  });
+});
+
+/**
+ * Delete image from DB and R2
+ */
+portfolioApi.delete('/images/:id', async (c) => {
+  const id = c.req.param('id');
+  
+  // Get image details
+  const image = await c.env.DB.prepare(
+    'SELECT * FROM portfolio_images WHERE id = ?'
+  ).bind(id).first<any>();
+  
+  if (!image) {
+    return c.json({ error: 'Image not found' }, 404);
+  }
+  
+  // Delete from R2 if we have the key
+  if (image.url) {
+    const key = image.url.replace('/api/images/', '');
+    await c.env.IMAGES.delete(key);
+  }
+  
+  // Delete from DB
+  await c.env.DB.prepare(
+    'DELETE FROM portfolio_images WHERE id = ?'
+  ).bind(id).run();
+  
+  return c.json({ success: true });
 });

@@ -14,6 +14,7 @@ import { visualizePage } from './pages/visualize';
 import { agentPage } from './pages/agent';
 import { portalPage, loginPage, adminLoginPage } from './pages/portal';
 import { adminDashboard, adminCustomers, adminQuotes, adminMessages } from './pages/admin';
+import { adminGalleryPage } from './pages/admin-gallery';
 import { galleryPage, galleryCategoryPage } from './pages/gallery';
 
 // Routes
@@ -101,6 +102,7 @@ app.get('/admin/invoices', requireAdmin, async (c) => {
 app.get('/admin/payments', requireAdmin, async (c) => {
   return c.redirect('/admin');
 });
+app.get('/admin/gallery', requireAdmin, adminGalleryPage);
 app.get('/admin/settings', requireAdmin, async (c) => {
   return c.redirect('/admin');
 });
