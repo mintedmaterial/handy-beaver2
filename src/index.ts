@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { getCookie } from 'hono/cookie';
 import { siteConfig } from '../config/site.config';
-// Email via MailChannels (send_email binding not working with current setup)
+import { sendGmail } from './utils/gmail';
 
 // Pages
 import { homePage } from './pages/home';
@@ -154,30 +154,21 @@ app.post('/portal/login', async (c) => {
       </div>
     `;
     
-    // Send via Resend (3k emails free/month)
-    if (c.env.RESEND_API_KEY) {
-      const emailRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${c.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'The Handy Beaver <noreply@handybeaver.co>',
-          to: [email as string],
-          subject: 'Your Login Link 🦫',
-          html: htmlContent,
-        }),
-      });
-      
-      if (emailRes.ok) {
-        console.log('Magic link email sent via Resend to', email);
-      } else {
-        console.error('Resend failed:', await emailRes.text());
-      }
+    // Send via Gmail API (using existing Google OAuth)
+    const result = await sendGmail(
+      c.env,
+      email as string,
+      'Your Login Link 🦫',
+      htmlContent,
+      'The Handy Beaver'
+    );
+    
+    if (result.success) {
+      console.log('Magic link email sent via Gmail to', email);
     } else {
-      // No API key - log magic link for testing
-      console.log('RESEND_API_KEY not set. Magic link:', magicLink);
+      console.error('Gmail send failed:', result.error);
+      // Fallback: log magic link for manual testing
+      console.log('Magic link (fallback):', magicLink);
     }
   } catch (e) {
     console.error('Email error:', e);
