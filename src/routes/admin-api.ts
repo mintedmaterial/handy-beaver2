@@ -205,6 +205,173 @@ adminApi.post('/quotes', async (c) => {
   return c.json({ success: true, id: result.meta.last_row_id, total });
 });
 
+// Quote preview HTML (for viewing and printing)
+adminApi.get('/quotes/:id/preview', async (c) => {
+  const id = c.req.param('id');
+  
+  const quote = await c.env.DB.prepare(`
+    SELECT q.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.address
+    FROM quotes q
+    JOIN customers c ON q.customer_id = c.id
+    WHERE q.id = ?
+  `).bind(id).first<any>();
+  
+  if (!quote) {
+    return c.text('Quote not found', 404);
+  }
+  
+  const validDate = quote.valid_until ? new Date(quote.valid_until * 1000).toLocaleDateString() : 'N/A';
+  const createdDate = quote.created_at ? new Date(quote.created_at * 1000).toLocaleDateString() : 'N/A';
+  
+  const laborTotal = (quote.labor_rate || 0) * (quote.estimated_hours || 1);
+  const helperTotal = quote.helper_needed ? (quote.helper_rate || 0) : 0;
+  
+  const html = `
+    <div class="quote-document" style="padding: 2rem; font-family: Georgia, serif;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #8B4513; padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+        <div>
+          <h1 style="color: #8B4513; margin: 0; font-size: 2rem;">🦫 The Handy Beaver</h1>
+          <p style="margin: 0.5rem 0 0; color: #666;">Traveling Craftsman & Maintenance Services</p>
+          <p style="margin: 0.25rem 0; color: #666; font-size: 0.9rem;">SE Oklahoma | contact@handybeaver.co</p>
+        </div>
+        <div style="text-align: right;">
+          <h2 style="margin: 0; color: #8B4513;">QUOTE</h2>
+          <p style="margin: 0.5rem 0 0; font-size: 0.9rem;">Date: ${createdDate}</p>
+          <p style="margin: 0.25rem 0; font-size: 0.9rem;">Valid Until: ${validDate}</p>
+          <span style="display: inline-block; padding: 4px 12px; background: ${quote.status === 'accepted' ? '#d1fae5' : quote.status === 'sent' ? '#dbeafe' : '#f3f4f6'}; border-radius: 12px; font-size: 0.8rem; text-transform: uppercase;">${quote.status}</span>
+        </div>
+      </div>
+      
+      <!-- Customer Info -->
+      <div style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0 0 0.5rem; color: #333;">Prepared For:</h3>
+        <p style="margin: 0; font-weight: 600;">${quote.customer_name}</p>
+        <p style="margin: 0.25rem 0; color: #666;">${quote.customer_email}</p>
+        ${quote.customer_phone ? `<p style="margin: 0.25rem 0; color: #666;">${quote.customer_phone}</p>` : ''}
+        ${quote.address ? `<p style="margin: 0.25rem 0; color: #666;">${quote.address}</p>` : ''}
+      </div>
+      
+      <!-- Line Items -->
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem;">
+        <thead>
+          <tr style="background: #8B4513; color: white;">
+            <th style="padding: 0.75rem; text-align: left;">Description</th>
+            <th style="padding: 0.75rem; text-align: right;">Qty</th>
+            <th style="padding: 0.75rem; text-align: right;">Rate</th>
+            <th style="padding: 0.75rem; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Labor (${quote.labor_type || 'Standard'})</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">${quote.estimated_hours || 1}</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${(quote.labor_rate || 0).toFixed(2)}</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${laborTotal.toFixed(2)}</td>
+          </tr>
+          ${quote.helper_needed ? `
+          <tr>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Helper (${quote.helper_type || 'Standard'})</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">1</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${(quote.helper_rate || 0).toFixed(2)}</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${(quote.helper_rate || 0).toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          ${quote.materials_estimate ? `
+          <tr>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Materials (estimate)</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">-</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">-</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${quote.materials_estimate.toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          ${quote.equipment_estimate ? `
+          <tr>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Equipment Rental</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">-</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">-</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${quote.equipment_estimate.toFixed(2)}</td>
+          </tr>
+          ` : ''}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="padding: 0.75rem; text-align: right; font-weight: 600;">Subtotal:</td>
+            <td style="padding: 0.75rem; text-align: right;">$${quote.subtotal?.toFixed(2) || '0.00'}</td>
+          </tr>
+          ${quote.discount_percent ? `
+          <tr>
+            <td colspan="3" style="padding: 0.75rem; text-align: right; color: #059669;">Discount (${quote.discount_percent}%${quote.discount_reason ? ' - ' + quote.discount_reason : ''}):</td>
+            <td style="padding: 0.75rem; text-align: right; color: #059669;">-$${((quote.subtotal || 0) * quote.discount_percent / 100).toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          <tr style="background: #f9f9f9;">
+            <td colspan="3" style="padding: 1rem; text-align: right; font-weight: 700; font-size: 1.1rem;">TOTAL:</td>
+            <td style="padding: 1rem; text-align: right; font-weight: 700; font-size: 1.25rem; color: #8B4513;">$${quote.total?.toFixed(2) || '0.00'}</td>
+          </tr>
+        </tfoot>
+      </table>
+      
+      ${quote.notes ? `
+      <div style="background: #fff8dc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+        <h4 style="margin: 0 0 0.5rem; color: #8B4513;">Notes:</h4>
+        <p style="margin: 0; white-space: pre-wrap;">${quote.notes}</p>
+      </div>
+      ` : ''}
+      
+      <!-- Footer -->
+      <div style="border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.85rem; color: #666;">
+        <p><strong>Terms:</strong> Quote valid for 14 days. 50% deposit required to schedule. Materials purchased separately by customer. Payment due upon completion.</p>
+        <p style="margin-top: 1rem; text-align: center;">
+          <strong>Accept this quote:</strong> Reply to this email or call/text to confirm.
+        </p>
+      </div>
+    </div>
+  `;
+  
+  return c.html(html);
+});
+
+// Quote PDF (uses browser print)
+adminApi.get('/quotes/:id/pdf', async (c) => {
+  const id = c.req.param('id');
+  
+  const quote = await c.env.DB.prepare(`
+    SELECT q.*, c.name as customer_name, c.email as customer_email
+    FROM quotes q
+    JOIN customers c ON q.customer_id = c.id
+    WHERE q.id = ?
+  `).bind(id).first<any>();
+  
+  if (!quote) {
+    return c.text('Quote not found', 404);
+  }
+  
+  // Return printable HTML page
+  const previewRes = await fetch(c.req.url.replace('/pdf', '/preview'));
+  const previewHtml = await previewRes.text();
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Quote - ${quote.customer_name}</title>
+      <style>
+        @media print {
+          body { margin: 0; }
+          @page { margin: 1in; }
+        }
+      </style>
+    </head>
+    <body onload="window.print()">
+      ${previewHtml}
+    </body>
+    </html>
+  `;
+  
+  return c.html(html);
+});
+
 adminApi.post('/quotes/:id/send', async (c) => {
   const id = c.req.param('id');
   const now = Math.floor(Date.now() / 1000);

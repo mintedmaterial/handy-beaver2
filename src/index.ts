@@ -17,6 +17,7 @@ import { adminDashboard, adminCustomers, adminQuotes, adminMessages } from './pa
 import { adminGalleryPage } from './pages/admin-gallery';
 import { adminMessagesPage } from './pages/admin-messages';
 import { adminCustomersPage } from './pages/admin-customers';
+import { adminQuotesPage } from './pages/admin-quotes';
 import { galleryPage, galleryCategoryPage } from './pages/gallery';
 
 // Routes
@@ -108,6 +109,7 @@ app.get('/admin/payments', requireAdmin, async (c) => {
 app.get('/admin/gallery', requireAdmin, adminGalleryPage);
 app.get('/admin/messages', requireAdmin, adminMessagesPage);
 app.get('/admin/customers', requireAdmin, adminCustomersPage);
+app.get('/admin/quotes', requireAdmin, adminQuotesPage);
 app.get('/admin/settings', requireAdmin, async (c) => {
   return c.redirect('/admin');
 });
