@@ -276,102 +276,54 @@ Enhanced prompt:`
       // Continue with original prompt
     }
     
-    // Step 2: Call Gemini API for image editing
-    // Use gemini-2.0-flash-exp-image-generation for image output
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${c.env.GEMINI_API_KEY}`;
-    
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: `You are a professional home improvement visualization assistant for The Handy Beaver handyman service. Edit this image according to the following detailed request. Keep the original perspective, lighting, and composition as much as possible while applying the requested changes realistically. Request: ${enhancedPrompt}` },
-            {
-              inline_data: {
-                mime_type: imageFile.type,
-                data: imageBase64,
-              },
-            },
-          ],
-        }],
-        generationConfig: {
-          responseModalities: ['IMAGE'],
-        },
-      }),
-    });
-    
+    // Step 2: Generate image using Cloudflare Workers AI (primary)
+    // Using CF Workers AI as primary since Gemini image editing is unstable
     let generatedImageBase64: string | null = null;
-    let generationMethod = 'gemini';
+    let generationMethod = 'workers-ai';
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      
-      // Fallback to Cloudflare Workers AI (try multiple models)
-      if (c.env.AI) {
-        console.log('Gemini failed, trying CF Workers AI fallbacks');
-        generationMethod = 'workers-ai';
+    if (!c.env.AI) {
+      throw new Error('AI binding not configured');
+    }
+    
+    // Try multiple CF models in order of quality
+    const models = [
+      '@cf/black-forest-labs/flux-1-schnell',
+      '@cf/lykon/dreamshaper-8-lcm', 
+      '@cf/stabilityai/stable-diffusion-xl-base-1.0',
+    ];
+    
+    let cfResult: ArrayBuffer | null = null;
+    let lastError: Error | null = null;
+    
+    for (const model of models) {
+      try {
+        console.log(`Trying CF Workers AI model: ${model}`);
+        cfResult = await c.env.AI.run(model, {
+          prompt: `Professional home improvement visualization: ${enhancedPrompt}. Photorealistic, high quality, natural lighting, detailed textures.`,
+        }) as ArrayBuffer;
         
-        // Try Flux first (best quality), then Leonardo, then SD
-        const models = [
-          '@cf/black-forest-labs/flux-1-schnell',
-          '@cf/lykon/dreamshaper-8-lcm',
-          '@cf/stabilityai/stable-diffusion-xl-base-1.0',
-        ];
-        
-        let cfResult: ArrayBuffer | null = null;
-        for (const model of models) {
-          try {
-            console.log(`Trying model: ${model}`);
-            cfResult = await c.env.AI.run(model, {
-              prompt: `Professional home improvement photo: ${enhancedPrompt}. Realistic, high quality, natural lighting.`,
-            }) as ArrayBuffer;
-            if (cfResult) {
-              console.log(`Success with model: ${model}`);
-              generationMethod = `workers-ai/${model.split('/').pop()}`;
-              break;
-            }
-          } catch (modelErr) {
-            console.error(`Model ${model} failed:`, modelErr);
-          }
-        }
-        
-        if (cfResult) {
-          // CF Workers AI returns ArrayBuffer - use chunked conversion
-          const buffer = new Uint8Array(cfResult);
-          let cfBinary = '';
-          for (let i = 0; i < buffer.length; i += 8192) {
-            cfBinary += String.fromCharCode(...buffer.slice(i, i + 8192));
-          }
-          generatedImageBase64 = btoa(cfBinary);
-        } else {
-          throw new Error('All CF models failed');
-        }
-      } else {
-        throw new Error('AI generation failed');
-      }
-    } else {
-      const result = await response.json() as any;
-      console.log('Gemini response structure:', JSON.stringify({
-        hasCandidate: !!result.candidates?.[0],
-        partsCount: result.candidates?.[0]?.content?.parts?.length || 0,
-        partTypes: result.candidates?.[0]?.content?.parts?.map((p: any) => p.text ? 'text' : p.inline_data ? 'image' : 'unknown') || [],
-        finishReason: result.candidates?.[0]?.finishReason,
-      }));
-      
-      // Extract generated image from Gemini response
-      for (const part of result.candidates?.[0]?.content?.parts || []) {
-        if (part.inline_data?.data) {
-          generatedImageBase64 = part.inline_data.data;
+        if (cfResult && cfResult.byteLength > 0) {
+          console.log(`Success with model: ${model}, size: ${cfResult.byteLength} bytes`);
+          generationMethod = model.split('/').pop() || 'workers-ai';
           break;
         }
+      } catch (modelErr) {
+        console.error(`Model ${model} failed:`, modelErr);
+        lastError = modelErr as Error;
       }
     }
     
-    if (!generatedImageBase64) {
-      throw new Error('No image generated - Gemini may not support image editing for this request');
+    if (!cfResult || cfResult.byteLength === 0) {
+      throw new Error(`All AI models failed. Last error: ${lastError?.message || 'unknown'}`);
     }
+    
+    // Convert ArrayBuffer to base64 (chunked to avoid stack overflow)
+    const buffer = new Uint8Array(cfResult);
+    let binary = '';
+    for (let i = 0; i < buffer.length; i += 8192) {
+      binary += String.fromCharCode(...buffer.slice(i, i + 8192));
+    }
+    generatedImageBase64 = btoa(binary);
     
     // Convert base64 to buffer
     const generatedBuffer = Uint8Array.from(atob(generatedImageBase64), c => c.charCodeAt(0));
