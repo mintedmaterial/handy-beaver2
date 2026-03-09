@@ -460,6 +460,162 @@ adminApi.post('/invoices', async (c) => {
   return c.json({ success: true, id: result.meta.last_row_id, invoice_number: invoiceNumber, total });
 });
 
+// Invoice preview HTML
+adminApi.get('/invoices/:id/preview', async (c) => {
+  const id = c.req.param('id');
+  
+  const invoice = await c.env.DB.prepare(`
+    SELECT i.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.address
+    FROM invoices i
+    JOIN customers c ON i.customer_id = c.id
+    WHERE i.id = ?
+  `).bind(id).first<any>();
+  
+  if (!invoice) {
+    return c.text('Invoice not found', 404);
+  }
+  
+  const createdDate = invoice.created_at ? new Date(invoice.created_at * 1000).toLocaleDateString() : 'N/A';
+  const dueDate = invoice.due_date ? new Date(invoice.due_date * 1000).toLocaleDateString() : 'N/A';
+  const paymentLink = `https://handybeaver.co/pay/${id}`;
+  
+  const html = `
+    <div class="invoice-document" style="padding: 2rem; font-family: Georgia, serif;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #8B4513; padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+        <div>
+          <h1 style="color: #8B4513; margin: 0; font-size: 2rem;">🦫 The Handy Beaver</h1>
+          <p style="margin: 0.5rem 0 0; color: #666;">Traveling Craftsman & Maintenance Services</p>
+          <p style="margin: 0.25rem 0; color: #666; font-size: 0.9rem;">SE Oklahoma | contact@handybeaver.co</p>
+        </div>
+        <div style="text-align: right;">
+          <h2 style="margin: 0; color: #8B4513;">INVOICE</h2>
+          <p style="margin: 0.5rem 0 0; font-weight: 600; font-size: 1.1rem;">${invoice.invoice_number || 'DRAFT'}</p>
+          <p style="margin: 0.5rem 0; font-size: 0.9rem;">Date: ${createdDate}</p>
+          <p style="margin: 0; font-size: 0.9rem; ${invoice.status === 'overdue' ? 'color: #dc2626; font-weight: 600;' : ''}">Due: ${dueDate}</p>
+          <span style="display: inline-block; margin-top: 0.5rem; padding: 4px 12px; background: ${invoice.status === 'paid' ? '#d1fae5' : invoice.status === 'overdue' ? '#fee2e2' : '#dbeafe'}; border-radius: 12px; font-size: 0.8rem; text-transform: uppercase;">${invoice.status}</span>
+        </div>
+      </div>
+      
+      <!-- Bill To -->
+      <div style="background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0 0 0.5rem; color: #333;">Bill To:</h3>
+        <p style="margin: 0; font-weight: 600;">${invoice.customer_name}</p>
+        <p style="margin: 0.25rem 0; color: #666;">${invoice.customer_email}</p>
+        ${invoice.customer_phone ? `<p style="margin: 0.25rem 0; color: #666;">${invoice.customer_phone}</p>` : ''}
+        ${invoice.address ? `<p style="margin: 0.25rem 0; color: #666;">${invoice.address}</p>` : ''}
+      </div>
+      
+      <!-- Line Items -->
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem;">
+        <thead>
+          <tr style="background: #8B4513; color: white;">
+            <th style="padding: 0.75rem; text-align: left;">Description</th>
+            <th style="padding: 0.75rem; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${invoice.labor_amount ? `<tr><td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Labor</td><td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${invoice.labor_amount.toFixed(2)}</td></tr>` : ''}
+          ${invoice.helper_amount ? `<tr><td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Helper</td><td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${invoice.helper_amount.toFixed(2)}</td></tr>` : ''}
+          ${invoice.materials_amount ? `<tr><td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Materials</td><td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${invoice.materials_amount.toFixed(2)}</td></tr>` : ''}
+          ${invoice.equipment_amount ? `<tr><td style="padding: 0.75rem; border-bottom: 1px solid #eee;">Equipment Rental</td><td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right;">$${invoice.equipment_amount.toFixed(2)}</td></tr>` : ''}
+          ${invoice.discount_amount ? `<tr><td style="padding: 0.75rem; border-bottom: 1px solid #eee; color: #059669;">Discount</td><td style="padding: 0.75rem; border-bottom: 1px solid #eee; text-align: right; color: #059669;">-$${invoice.discount_amount.toFixed(2)}</td></tr>` : ''}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td style="padding: 0.75rem; text-align: right; font-weight: 600;">Subtotal:</td>
+            <td style="padding: 0.75rem; text-align: right;">$${invoice.subtotal?.toFixed(2) || '0.00'}</td>
+          </tr>
+          ${invoice.tax_amount ? `
+          <tr>
+            <td style="padding: 0.75rem; text-align: right;">Tax (${invoice.tax_rate}%):</td>
+            <td style="padding: 0.75rem; text-align: right;">$${invoice.tax_amount.toFixed(2)}</td>
+          </tr>
+          ` : ''}
+          <tr style="background: #f9f9f9;">
+            <td style="padding: 1rem; text-align: right; font-weight: 700; font-size: 1.1rem;">TOTAL:</td>
+            <td style="padding: 1rem; text-align: right; font-weight: 700; font-size: 1.25rem; color: #8B4513;">$${invoice.total?.toFixed(2) || '0.00'}</td>
+          </tr>
+          ${invoice.amount_paid ? `
+          <tr>
+            <td style="padding: 0.75rem; text-align: right; color: #059669;">Amount Paid:</td>
+            <td style="padding: 0.75rem; text-align: right; color: #059669;">-$${invoice.amount_paid.toFixed(2)}</td>
+          </tr>
+          <tr style="background: #fef3c7;">
+            <td style="padding: 0.75rem; text-align: right; font-weight: 700;">BALANCE DUE:</td>
+            <td style="padding: 0.75rem; text-align: right; font-weight: 700; color: #dc2626;">$${(invoice.total - invoice.amount_paid).toFixed(2)}</td>
+          </tr>
+          ` : ''}
+        </tfoot>
+      </table>
+      
+      ${invoice.notes ? `
+      <div style="background: #fff8dc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+        <h4 style="margin: 0 0 0.5rem; color: #8B4513;">Notes:</h4>
+        <p style="margin: 0; white-space: pre-wrap;">${invoice.notes}</p>
+      </div>
+      ` : ''}
+      
+      <!-- Payment Section -->
+      ${invoice.status !== 'paid' ? `
+      <div style="background: #e0f2fe; padding: 1.5rem; border-radius: 8px; text-align: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0 0 0.5rem; color: #0369a1;">Pay Online</h3>
+        <p style="margin: 0 0 1rem; color: #666;">Secure payment via credit/debit card</p>
+        <a href="${paymentLink}" style="display: inline-block; background: #8B4513; color: white; padding: 0.75rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600;">Pay Now →</a>
+        <p style="margin: 1rem 0 0; font-size: 0.85rem; color: #666;">${paymentLink}</p>
+      </div>
+      ` : ''}
+      
+      <!-- Footer -->
+      <div style="border-top: 1px solid #eee; padding-top: 1rem; font-size: 0.85rem; color: #666;">
+        <p><strong>Payment Methods:</strong> Credit Card, Debit Card, Cash</p>
+        <p><strong>Questions?</strong> Contact us at contact@handybeaver.co</p>
+        <p style="margin-top: 1rem; text-align: center; font-style: italic;">Thank you for your business! 🦫</p>
+      </div>
+    </div>
+  `;
+  
+  return c.html(html);
+});
+
+// Invoice PDF (printable)
+adminApi.get('/invoices/:id/pdf', async (c) => {
+  const id = c.req.param('id');
+  
+  const invoice = await c.env.DB.prepare(`
+    SELECT i.*, c.name as customer_name FROM invoices i
+    JOIN customers c ON i.customer_id = c.id
+    WHERE i.id = ?
+  `).bind(id).first<any>();
+  
+  if (!invoice) {
+    return c.text('Invoice not found', 404);
+  }
+  
+  const previewRes = await fetch(c.req.url.replace('/pdf', '/preview'));
+  const previewHtml = await previewRes.text();
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Invoice ${invoice.invoice_number} - ${invoice.customer_name}</title>
+      <style>
+        @media print {
+          body { margin: 0; }
+          @page { margin: 0.75in; }
+        }
+      </style>
+    </head>
+    <body onload="window.print()">
+      ${previewHtml}
+    </body>
+    </html>
+  `;
+  
+  return c.html(html);
+});
+
 adminApi.post('/invoices/:id/send', async (c) => {
   const id = c.req.param('id');
   const now = Math.floor(Date.now() / 1000);
