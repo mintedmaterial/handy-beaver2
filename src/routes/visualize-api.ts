@@ -380,6 +380,34 @@ Enhanced prompt:`
   }
 });
 
+// Save visualization indefinitely (prevent 30-day expiry)
+visualizeApi.post('/save/:id', async (c) => {
+  const portalToken = getCookie(c, 'hb_portal');
+  const id = c.req.param('id');
+  
+  if (!portalToken) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  
+  const customer = await getPortalCustomer(c.env.DB, portalToken);
+  if (!customer) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  
+  // Verify ownership and update
+  const result = await c.env.DB.prepare(`
+    UPDATE visualizer_usage 
+    SET saved_indefinitely = 1 
+    WHERE id = ? AND customer_id = ?
+  `).bind(id, customer.customer_id).run();
+  
+  if (result.meta.changes === 0) {
+    return c.json({ error: 'Not found or not yours' }, 404);
+  }
+  
+  return c.json({ success: true });
+});
+
 // Get usage history for customer
 visualizeApi.get('/history', async (c) => {
   const portalToken = getCookie(c, 'hb_portal');
