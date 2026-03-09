@@ -104,6 +104,7 @@ app.get('/admin/payments', requireAdmin, async (c) => {
 app.get('/admin/gallery', requireAdmin, adminGalleryPage);
 app.get('/admin/visualizer', requireAdmin, adminVisualizerPage);
 app.get('/admin/messages', requireAdmin, adminMessagesPage);
+app.get('/admin/messages/:customerId', requireAdmin, adminMessagesPage); // Handle direct links
 app.get('/admin/customers', requireAdmin, adminCustomersPage);
 app.get('/admin/quotes', requireAdmin, adminQuotesPage);
 app.get('/admin/jobs', requireAdmin, adminJobsPage);
