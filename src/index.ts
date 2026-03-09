@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { getCookie } from 'hono/cookie';
 import { siteConfig } from '../config/site.config';
+// Email via MailChannels (send_email binding not working with current setup)
 
 // Pages
 import { homePage } from './pages/home';
@@ -28,8 +29,9 @@ import { authRoutes } from './routes/auth';
 import { adminApi } from './routes/admin-api';
 import { facebookMonitor } from './routes/facebook-monitor';
 import { facebookPosts } from './routes/facebook-posts';
-import { facebookSession } from './routes/facebook-session';
-import { facebookScraper } from './routes/facebook-scraper';
+// Temporarily disabled - puppeteer build issue
+// import { facebookSession } from './routes/facebook-session';
+// import { facebookScraper } from './routes/facebook-scraper';
 import { portfolioApi } from './routes/portfolio';
 import { paymentsApi } from './routes/payments';
 import { voiceApi } from './routes/voice-api';
@@ -48,6 +50,7 @@ type Bindings = {
   RESEND_API_KEY?: string;
   SQUARE_ACCESS_TOKEN?: string;
   GEMINI_API_KEY?: string;
+  SEND_EMAIL?: any; // Cloudflare Email binding
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -126,49 +129,46 @@ app.post('/portal/login', async (c) => {
   // Build magic link
   const magicLink = `https://handybeaver.co/portal/verify?token=${token}`;
   
-  // Send email via MailChannels (free with Cloudflare Workers)
+  // Send email via Cloudflare Email Workers
   try {
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #8B4513, #D2691E); padding: 30px; text-align: center;">
+          <h1 style="color: white; margin: 0;">🦫 The Handy Beaver</h1>
+        </div>
+        <div style="padding: 30px; background: #f9f9f9;">
+          <h2 style="color: #333;">Hi ${customer.name?.split(' ')[0] || 'there'}!</h2>
+          <p style="color: #666; font-size: 16px;">Click the button below to access your customer portal:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${magicLink}" style="background: #8B4513; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-size: 18px; font-weight: bold;">
+              Log In to Portal →
+            </a>
+          </div>
+          <p style="color: #999; font-size: 14px;">This link expires in 15 minutes.</p>
+          <p style="color: #999; font-size: 14px;">If you didn't request this, you can ignore this email.</p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
+          The Handy Beaver | SE Oklahoma<br>
+          Traveling Craftsman & Maintenance Services
+        </div>
+      </div>
+    `;
+    
+    // Send via MailChannels (free for Cloudflare Workers)
     const emailRes = await fetch('https://api.mailchannels.net/tx/v1/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        personalizations: [{
-          to: [{ email: email as string, name: customer.name }],
-        }],
-        from: {
-          email: 'portal@handybeaver.co',
-          name: 'The Handy Beaver',
-        },
+        personalizations: [{ to: [{ email: email as string, name: customer.name }] }],
+        from: { email: 'noreply@handybeaver.co', name: 'The Handy Beaver' },
         subject: 'Your Login Link 🦫',
-        content: [{
-          type: 'text/html',
-          value: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #8B4513, #D2691E); padding: 30px; text-align: center;">
-                <h1 style="color: white; margin: 0;">🦫 The Handy Beaver</h1>
-              </div>
-              <div style="padding: 30px; background: #f9f9f9;">
-                <h2 style="color: #333;">Hi ${customer.name?.split(' ')[0] || 'there'}!</h2>
-                <p style="color: #666; font-size: 16px;">Click the button below to access your customer portal:</p>
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${magicLink}" style="background: #8B4513; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-size: 18px; font-weight: bold;">
-                    Log In to Portal →
-                  </a>
-                </div>
-                <p style="color: #999; font-size: 14px;">This link expires in 15 minutes.</p>
-                <p style="color: #999; font-size: 14px;">If you didn't request this, you can ignore this email.</p>
-              </div>
-              <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
-                The Handy Beaver | SE Oklahoma<br>
-                Traveling Craftsman & Maintenance Services
-              </div>
-            </div>
-          `,
-        }],
+        content: [{ type: 'text/html', value: htmlContent }],
       }),
     });
     
-    if (!emailRes.ok) {
+    if (emailRes.ok) {
+      console.log('Magic link email sent to', email);
+    } else {
       console.error('Email send failed:', await emailRes.text());
     }
   } catch (e) {
@@ -298,8 +298,9 @@ api.route('/admin', adminApi);
 // Mount Facebook monitoring routes
 api.route('/facebook', facebookMonitor);
 api.route('/facebook', facebookPosts);
-api.route('/facebook', facebookSession);
-api.route('/facebook', facebookScraper);
+// Temporarily disabled - puppeteer build issue
+// api.route('/facebook', facebookSession);
+// api.route('/facebook', facebookScraper);
 
 // Mount portfolio/gallery API routes
 api.route('/images/portfolio', portfolioApi);
