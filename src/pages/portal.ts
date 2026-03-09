@@ -1,306 +1,475 @@
 import { Context } from 'hono';
-import { layout } from '../lib/html';
-import { Customer } from '../lib/auth';
+import { getCookie } from 'hono/cookie';
+import { siteConfig } from '../../config/site.config';
 
-export const portalPage = async (c: Context) => {
-  const customer = c.get('customer') as Customer;
-  
-  // Fetch customer's bookings, quotes, messages
-  const bookings = await c.env.DB.prepare(`
-    SELECT * FROM bookings 
-    WHERE customer_id = ? 
-    ORDER BY created_at DESC 
-    LIMIT 10
-  `).bind(customer.id).all();
-  
-  const quotes = await c.env.DB.prepare(`
-    SELECT * FROM quotes 
-    WHERE customer_id = ? 
-    ORDER BY created_at DESC 
-    LIMIT 10
-  `).bind(customer.id).all();
-  
-  const messages = await c.env.DB.prepare(`
-    SELECT * FROM messages 
-    WHERE customer_id = ? 
-    ORDER BY created_at DESC 
-    LIMIT 20
-  `).bind(customer.id).all();
-  
-  const statusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: '#f59e0b',
-      confirmed: '#10b981',
-      in_progress: '#3b82f6',
-      completed: '#22c55e',
-      cancelled: '#ef4444',
-      draft: '#9ca3af',
-      sent: '#f59e0b',
-      accepted: '#22c55e',
-      declined: '#ef4444',
-    };
-    return `<span style="
-      background: ${colors[status] || '#9ca3af'};
+const { business, theme } = siteConfig;
+
+// Portal layout (customer-facing, different from admin)
+const portalLayout = (title: string, content: string, customer?: any) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} | ${business.name} Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: ${theme.colors.primary};
+      --secondary: ${theme.colors.secondary};
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+    }
+    .portal-nav {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
       color: white;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-    ">${status}</span>`;
-  };
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .portal-nav .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-family: 'Playfair Display', serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .portal-nav .brand img { width: 40px; height: 40px; border-radius: 50%; }
+    .portal-nav .user {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .portal-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: calc(100vh - 60px);
+    }
+    .sidebar {
+      background: white;
+      border-right: 1px solid #e5e5e5;
+      padding: 1.5rem 0;
+    }
+    .sidebar a {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.5rem;
+      color: #333;
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: all 0.2s;
+    }
+    .sidebar a:hover { background: #f9f9f9; }
+    .sidebar a.active {
+      background: #fff5f0;
+      border-left-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .main-content {
+      padding: 2rem;
+      max-width: 1200px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 1.5rem;
+    }
+    .card h2 { color: var(--primary); margin-bottom: 1rem; }
+    .btn { display: inline-block; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; cursor: pointer; border: none; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-secondary { background: #e5e7eb; color: #333; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: capitalize; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-sent { background: #dbeafe; color: #1e40af; }
+    .badge-accepted { background: #d1fae5; color: #065f46; }
+    .badge-paid { background: #d1fae5; color: #065f46; }
+    .badge-confirmed { background: #dbeafe; color: #1e40af; }
+    .badge-in_progress { background: #ede9fe; color: #6b21a8; }
+    .badge-completed { background: #d1fae5; color: #065f46; }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th, .table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+    .table th { font-weight: 600; color: #666; font-size: 0.85rem; }
+    .empty { text-align: center; padding: 3rem; color: #666; }
+    
+    @media (max-width: 768px) {
+      .portal-layout { grid-template-columns: 1fr; }
+      .sidebar { display: flex; overflow-x: auto; padding: 0.5rem; border-right: none; border-bottom: 1px solid #e5e5e5; }
+      .sidebar a { padding: 0.5rem 1rem; border-left: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+      .sidebar a.active { border-bottom-color: var(--primary); }
+    }
+  </style>
+</head>
+<body>
+  <nav class="portal-nav">
+    <div class="brand">
+      <img src="/api/assets/beaver-avatar.png" alt="Beaver">
+      <span>My Account</span>
+    </div>
+    <div class="user">
+      <span>👋 ${customer?.name || 'Customer'}</span>
+      <a href="/portal/logout" style="color: rgba(255,255,255,0.8);">Logout</a>
+    </div>
+  </nav>
   
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+  <div class="portal-layout">
+    <aside class="sidebar">
+      <a href="/portal">🏠 Dashboard</a>
+      <a href="/portal/quotes">💰 My Quotes</a>
+      <a href="/portal/invoices">📄 Invoices</a>
+      <a href="/portal/jobs">🛠️ Job History</a>
+      <a href="/portal/messages">💬 Messages</a>
+    </aside>
+    
+    <main class="main-content">
+      ${content}
+    </main>
+  </div>
+</body>
+</html>
+`;
+
+// Portal auth middleware
+export const requirePortalAuth = async (c: Context, next: () => Promise<void>) => {
+  const sessionToken = getCookie(c, 'hb_portal');
   
-  const content = `
-    <section style="padding: 2rem;">
-      <div class="container">
-        <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-          <div>
-            <h1 style="font-family: 'Playfair Display', serif; color: var(--accent); font-size: 2rem; margin: 0;">
-              Welcome back, ${customer.name}!
-            </h1>
-            <p style="color: var(--secondary); margin: 0.5rem 0 0;">${customer.email}</p>
-          </div>
-          <div style="display: flex; gap: 1rem; align-items: center;">
-            <a href="/portal/profile" class="btn btn-secondary" style="padding: 0.5rem 1rem;">
-              Edit Profile
-            </a>
-            <a href="/api/auth/logout" class="btn" style="padding: 0.5rem 1rem; background: #666; color: white;">
-              Logout
-            </a>
-          </div>
-        </div>
-        
-        <!-- Stats -->
-        <div class="grid grid-4" style="margin-bottom: 2rem;">
-          <div class="card" style="text-align: center;">
-            <div style="font-size: 2rem; color: var(--primary); font-weight: bold;">${customer.total_jobs}</div>
-            <div style="color: #666;">Completed Jobs</div>
-          </div>
-          <div class="card" style="text-align: center;">
-            <div style="font-size: 2rem; color: var(--primary); font-weight: bold;">
-              $${customer.total_spent.toFixed(0)}
-            </div>
-            <div style="color: #666;">Total Spent</div>
-          </div>
-          <div class="card" style="text-align: center;">
-            <div style="font-size: 2rem; color: var(--primary); font-weight: bold;">
-              ${(bookings.results as any[])?.filter((b: any) => b.status === 'pending').length || 0}
-            </div>
-            <div style="color: #666;">Pending Requests</div>
-          </div>
-          <div class="card" style="text-align: center;">
-            <div style="font-size: 2rem; color: var(--primary); font-weight: bold;">
-              ${(quotes.results as any[])?.filter((q: any) => q.status === 'sent').length || 0}
-            </div>
-            <div style="color: #666;">Open Quotes</div>
-          </div>
-        </div>
-        
-        <!-- Quick Actions -->
-        <div class="card" style="margin-bottom: 2rem;">
-          <h3 style="color: var(--primary); margin-bottom: 1rem;">Quick Actions</h3>
-          <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-            <a href="/contact" class="btn btn-primary">Request New Quote</a>
-            <a href="/visualize" class="btn btn-secondary">AI Visualizer</a>
-            <a href="/agent" class="btn btn-secondary">Chat with Us</a>
-            <a href="/portal/payments" class="btn btn-secondary">Make Payment</a>
-          </div>
-        </div>
-        
-        <div class="grid grid-2">
-          <!-- Bookings -->
-          <div class="card">
-            <h3 style="color: var(--primary); margin-bottom: 1rem;">Your Projects</h3>
-            ${(bookings.results as any[])?.length > 0 ? `
-              <div style="display: flex; flex-direction: column; gap: 1rem;">
-                ${(bookings.results as any[]).map((b: any) => `
-                  <div style="padding: 1rem; background: #f9f9f9; border-radius: 8px; border-left: 4px solid var(--primary);">
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                      <div>
-                        <strong>${b.title}</strong>
-                        <p style="color: #666; font-size: 0.9rem; margin: 0.25rem 0;">
-                          ${b.service_type || 'General'} • ${b.scheduled_date || 'Not scheduled'}
-                        </p>
-                      </div>
-                      ${statusBadge(b.status)}
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            ` : `
-              <p style="color: #666; text-align: center; padding: 2rem;">
-                No projects yet. <a href="/contact" style="color: var(--primary);">Request a quote</a> to get started!
-              </p>
-            `}
-          </div>
-          
-          <!-- Quotes -->
-          <div class="card">
-            <h3 style="color: var(--primary); margin-bottom: 1rem;">Your Quotes</h3>
-            ${(quotes.results as any[])?.length > 0 ? `
-              <div style="display: flex; flex-direction: column; gap: 1rem;">
-                ${(quotes.results as any[]).map((q: any) => `
-                  <div style="padding: 1rem; background: #f9f9f9; border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div>
-                        <strong>$${q.total?.toFixed(2) || '0.00'}</strong>
-                        <p style="color: #666; font-size: 0.9rem; margin: 0;">
-                          ${formatDate(q.created_at)}
-                        </p>
-                      </div>
-                      <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        ${statusBadge(q.status)}
-                        ${q.status === 'sent' ? `
-                          <a href="/portal/quotes/${q.id}" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
-                            View
-                          </a>
-                        ` : ''}
-                      </div>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            ` : `
-              <p style="color: #666; text-align: center; padding: 2rem;">
-                No quotes yet.
-              </p>
-            `}
-          </div>
-        </div>
-        
-        <!-- Messages -->
-        <div class="card" style="margin-top: 2rem;">
-          <h3 style="color: var(--primary); margin-bottom: 1rem;">Recent Messages</h3>
-          ${(messages.results as any[])?.length > 0 ? `
-            <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 300px; overflow-y: auto;">
-              ${(messages.results as any[]).map((m: any) => `
-                <div style="
-                  padding: 0.75rem 1rem;
-                  background: ${m.sender === 'customer' ? 'var(--primary)' : '#f9f9f9'};
-                  color: ${m.sender === 'customer' ? 'white' : '#333'};
-                  border-radius: ${m.sender === 'customer' ? '12px 12px 0 12px' : '12px 12px 12px 0'};
-                  align-self: ${m.sender === 'customer' ? 'flex-end' : 'flex-start'};
-                  max-width: 80%;
-                ">
-                  <p style="margin: 0;">${m.content}</p>
-                  <small style="opacity: 0.7;">${formatDate(m.created_at)}</small>
-                </div>
-              `).join('')}
-            </div>
-          ` : `
-            <p style="color: #666; text-align: center; padding: 2rem;">
-              No messages yet. <a href="/agent" style="color: var(--primary);">Start a conversation</a>!
-            </p>
-          `}
-          <div style="margin-top: 1rem;">
-            <a href="/agent" class="btn btn-secondary" style="width: 100%; text-align: center;">
-              Open Chat →
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
+  if (!sessionToken) {
+    return c.redirect('/portal/login');
+  }
   
-  return c.html(layout('Customer Portal', content, 'portal'));
+  // Verify session
+  const session = await c.env.DB.prepare(`
+    SELECT cs.*, c.* FROM customer_sessions cs
+    JOIN customers c ON cs.customer_id = c.id
+    WHERE cs.token = ? AND cs.expires_at > ?
+  `).bind(sessionToken, Math.floor(Date.now() / 1000)).first<any>();
+  
+  if (!session) {
+    return c.redirect('/portal/login');
+  }
+  
+  c.set('customer', session);
+  await next();
 };
 
-export const loginPage = (c: Context) => {
+// Login page
+export const portalLoginPage = async (c: Context) => {
   const error = c.req.query('error');
   const success = c.req.query('success');
   
-  const content = `
-    <section style="min-height: calc(100vh - 200px); display: flex; align-items: center; justify-content: center; padding: 2rem;">
-      <div class="card" style="max-width: 400px; width: 100%;">
-        <div style="text-align: center; margin-bottom: 2rem;">
-          <img src="/api/assets/beaver-avatar.png" alt="Handy Beaver" style="width: 80px; height: 80px; border-radius: 50%; margin-bottom: 1rem;">
-          <h1 style="font-family: 'Playfair Display', serif; color: var(--primary); margin: 0;">Customer Portal</h1>
-          <p style="color: #666; margin: 0.5rem 0 0;">Sign in with your email</p>
-        </div>
-        
-        ${error ? `
-          <div style="background: #fee2e2; color: #dc2626; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-            ${error === 'invalid' ? 'Invalid or expired link. Please try again.' : 'An error occurred. Please try again.'}
-          </div>
-        ` : ''}
-        
-        ${success ? `
-          <div style="background: #dcfce7; color: #16a34a; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-            ✓ Check your email! We've sent you a login link.
-          </div>
-        ` : ''}
-        
-        <form action="/api/auth/magic-link" method="POST" style="display: flex; flex-direction: column; gap: 1rem;">
-          <div>
-            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Email Address</label>
-            <input 
-              type="email" 
-              name="email" 
-              required
-              placeholder="your@email.com"
-              style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem;"
-            >
-          </div>
-          
-          <button type="submit" class="btn btn-primary" style="width: 100%;">
-            Send Login Link
-          </button>
-        </form>
-        
-        <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #eee;">
-          <p style="color: #666; font-size: 0.9rem; margin: 0;">
-            New customer? <a href="/contact" style="color: var(--primary);">Request a quote</a> first.
-          </p>
-        </div>
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | ${business.name} Portal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .login-card {
+      background: white;
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    .logo { text-align: center; margin-bottom: 2rem; }
+    .logo img { width: 80px; height: 80px; border-radius: 50%; }
+    .logo h1 { font-size: 1.5rem; color: #8B4513; margin-top: 1rem; }
+    .logo p { color: #666; font-size: 0.9rem; }
+    .form-group { margin-bottom: 1.5rem; }
+    .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #333; }
+    .form-group input { width: 100%; padding: 0.875rem 1rem; border: 2px solid #e5e5e5; border-radius: 8px; font-size: 1rem; }
+    .form-group input:focus { outline: none; border-color: #8B4513; }
+    .btn-login { width: 100%; padding: 1rem; background: #8B4513; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .btn-login:hover { background: #6d360f; }
+    .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; }
+    .alert-error { background: #fee2e2; color: #991b1b; }
+    .alert-success { background: #d1fae5; color: #065f46; }
+    .help { text-align: center; margin-top: 1.5rem; color: #666; font-size: 0.9rem; }
+    .help a { color: #8B4513; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="logo">
+      <img src="/api/assets/beaver-avatar.png" alt="${business.name}">
+      <h1>Customer Portal</h1>
+      <p>View your quotes, invoices, and job history</p>
+    </div>
+    
+    ${error ? '<div class="alert alert-error">Invalid or expired link. Please request a new one.</div>' : ''}
+    ${success ? '<div class="alert alert-success">Check your email! We sent you a login link.</div>' : ''}
+    
+    <form action="/portal/login" method="POST">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required>
       </div>
-    </section>
+      
+      <button type="submit" class="btn-login">Send Magic Link ✨</button>
+    </form>
+    
+    <p class="help">
+      No account? Contact us at <a href="mailto:${business.email}">${business.email}</a>
+    </p>
+  </div>
+</body>
+</html>
   `;
   
-  return c.html(layout('Login', content));
+  return c.html(html);
 };
 
-export const adminLoginPage = (c: Context) => {
-  const githubClientId = c.env.GITHUB_CLIENT_ID;
-  const callbackUrl = `${new URL(c.req.url).origin}/api/auth/github/callback`;
-  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${githubClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=user:email`;
+// Dashboard
+export const portalDashboard = async (c: Context) => {
+  const customer = c.get('customer');
+  const db = c.env.DB;
+  
+  const [quotes, invoices, jobs] = await Promise.all([
+    db.prepare(`
+      SELECT COUNT(*) as count, SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as pending
+      FROM quotes WHERE customer_id = ?
+    `).bind(customer.customer_id).first<any>(),
+    db.prepare(`
+      SELECT COUNT(*) as count, 
+        SUM(CASE WHEN status IN ('sent', 'partial') THEN total - amount_paid ELSE 0 END) as outstanding
+      FROM invoices WHERE customer_id = ?
+    `).bind(customer.customer_id).first<any>(),
+    db.prepare(`
+      SELECT COUNT(*) as count,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+      FROM bookings WHERE customer_id = ?
+    `).bind(customer.customer_id).first<any>(),
+  ]);
+  
+  const recentActivity = await db.prepare(`
+    SELECT 'quote' as type, 'Quote received' as title, total as amount, status, created_at
+    FROM quotes WHERE customer_id = ?
+    UNION ALL
+    SELECT 'invoice' as type, invoice_number as title, total as amount, status, created_at
+    FROM invoices WHERE customer_id = ?
+    ORDER BY created_at DESC LIMIT 5
+  `).bind(customer.customer_id, customer.customer_id).all<any>();
   
   const content = `
-    <section style="min-height: calc(100vh - 200px); display: flex; align-items: center; justify-content: center; padding: 2rem;">
-      <div class="card" style="max-width: 400px; width: 100%; text-align: center;">
-        <img src="/api/assets/beaver-avatar.png" alt="Handy Beaver" style="width: 80px; height: 80px; border-radius: 50%; margin-bottom: 1rem;">
-        <h1 style="font-family: 'Playfair Display', serif; color: var(--primary); margin: 0;">Owner Login</h1>
-        <p style="color: #666; margin: 0.5rem 0 1.5rem;">Sign in to manage your business</p>
-        
-        <a href="${githubAuthUrl}" class="btn" style="
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.75rem;
-          width: 100%;
-          background: #24292e;
-          color: white;
-          padding: 0.75rem;
-        ">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-          </svg>
-          Sign in with GitHub
-        </a>
-        
-        <p style="color: #999; font-size: 0.85rem; margin-top: 1.5rem;">
-          Only authorized owners can access this area.
-        </p>
+    <h1 style="margin-bottom: 1.5rem;">Welcome back, ${customer.name?.split(' ')[0]}! 👋</h1>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 2.5rem; color: var(--primary);">${quotes?.pending || 0}</div>
+        <div style="color: #666;">Pending Quotes</div>
+        <a href="/portal/quotes" style="color: var(--secondary); font-size: 0.9rem;">View all →</a>
       </div>
-    </section>
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 2.5rem; color: ${invoices?.outstanding > 0 ? '#dc2626' : 'var(--primary)'};">$${(invoices?.outstanding || 0).toLocaleString()}</div>
+        <div style="color: #666;">Outstanding Balance</div>
+        ${invoices?.outstanding > 0 ? `<a href="/portal/invoices" class="btn btn-primary" style="margin-top: 0.5rem; font-size: 0.85rem;">Pay Now</a>` : ''}
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 2.5rem; color: var(--primary);">${jobs?.completed || 0}</div>
+        <div style="color: #666;">Jobs Completed</div>
+        <a href="/portal/jobs" style="color: var(--secondary); font-size: 0.9rem;">View history →</a>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h2>Recent Activity</h2>
+      ${recentActivity.results?.length ? `
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${recentActivity.results.map((a: any) => `
+              <tr>
+                <td>
+                  ${a.type === 'quote' ? '💰' : '📄'} ${a.title}
+                </td>
+                <td>$${a.amount?.toLocaleString() || '-'}</td>
+                <td><span class="badge badge-${a.status}">${a.status}</span></td>
+                <td>${new Date(a.created_at * 1000).toLocaleDateString()}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="empty">No recent activity</div>'}
+    </div>
+    
+    <div class="card">
+      <h2>Need Help?</h2>
+      <p style="color: #666; margin-bottom: 1rem;">Have a question about a quote or invoice? We're here to help!</p>
+      <a href="/portal/messages" class="btn btn-primary">Send a Message</a>
+      <a href="tel:${business.phone}" class="btn btn-secondary" style="margin-left: 0.5rem;">📞 Call Us</a>
+    </div>
   `;
   
-  return c.html(layout('Admin Login', content));
+  return c.html(portalLayout('Dashboard', content, customer));
+};
+
+// Quotes list
+export const portalQuotes = async (c: Context) => {
+  const customer = c.get('customer');
+  
+  const quotes = await c.env.DB.prepare(`
+    SELECT * FROM quotes
+    WHERE customer_id = ?
+    ORDER BY created_at DESC
+  `).bind(customer.customer_id).all<any>();
+  
+  const content = `
+    <h1 style="margin-bottom: 1.5rem;">My Quotes</h1>
+    
+    <div class="card">
+      ${quotes.results?.length ? `
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Valid Until</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${quotes.results.map((q: any) => `
+              <tr>
+                <td>${q.labor_type || 'Work Quote'}</td>
+                <td><strong>$${q.total?.toLocaleString()}</strong></td>
+                <td><span class="badge badge-${q.status}">${q.status}</span></td>
+                <td>${q.valid_until ? new Date(q.valid_until * 1000).toLocaleDateString() : '-'}</td>
+                <td>
+                  <a href="/portal/quotes/${q.id}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">View</a>
+                  ${q.status === 'sent' ? `<a href="/portal/quotes/${q.id}/accept" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; margin-left: 0.5rem;">Accept</a>` : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="empty">No quotes yet. Contact us for a free estimate!</div>'}
+    </div>
+  `;
+  
+  return c.html(portalLayout('My Quotes', content, customer));
+};
+
+// Invoices list
+export const portalInvoices = async (c: Context) => {
+  const customer = c.get('customer');
+  
+  const invoices = await c.env.DB.prepare(`
+    SELECT * FROM invoices
+    WHERE customer_id = ?
+    ORDER BY created_at DESC
+  `).bind(customer.customer_id).all<any>();
+  
+  const content = `
+    <h1 style="margin-bottom: 1.5rem;">My Invoices</h1>
+    
+    <div class="card">
+      ${invoices.results?.length ? `
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Status</th>
+              <th>Due Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${invoices.results.map((inv: any) => `
+              <tr>
+                <td><strong>${inv.invoice_number || 'DRAFT'}</strong></td>
+                <td>$${inv.total?.toLocaleString()}</td>
+                <td>$${(inv.amount_paid || 0).toLocaleString()}</td>
+                <td><span class="badge badge-${inv.status}">${inv.status}</span></td>
+                <td>${inv.due_date ? new Date(inv.due_date * 1000).toLocaleDateString() : '-'}</td>
+                <td>
+                  <a href="/portal/invoices/${inv.id}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">View</a>
+                  ${['sent', 'partial', 'overdue'].includes(inv.status) ? `<a href="/pay/${inv.id}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; margin-left: 0.5rem;">Pay</a>` : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="empty">No invoices yet.</div>'}
+    </div>
+  `;
+  
+  return c.html(portalLayout('My Invoices', content, customer));
+};
+
+// Jobs list
+export const portalJobs = async (c: Context) => {
+  const customer = c.get('customer');
+  
+  const jobs = await c.env.DB.prepare(`
+    SELECT * FROM bookings
+    WHERE customer_id = ?
+    ORDER BY created_at DESC
+  `).bind(customer.customer_id).all<any>();
+  
+  const content = `
+    <h1 style="margin-bottom: 1.5rem;">Job History</h1>
+    
+    <div class="card">
+      ${jobs.results?.length ? `
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Status</th>
+              <th>Scheduled</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${jobs.results.map((job: any) => `
+              <tr>
+                <td>
+                  <strong>${job.title || job.service_type}</strong>
+                  ${job.description ? `<br><small style="color:#666">${job.description.slice(0, 50)}...</small>` : ''}
+                </td>
+                <td><span class="badge badge-${job.status}">${job.status?.replace('_', ' ')}</span></td>
+                <td>${job.scheduled_date ? new Date(job.scheduled_date).toLocaleDateString() : 'TBD'}</td>
+                <td>
+                  <a href="/portal/jobs/${job.id}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Details</a>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="empty">No jobs yet. Request a quote to get started!</div>'}
+    </div>
+  `;
+  
+  return c.html(portalLayout('Job History', content, customer));
 };

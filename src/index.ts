@@ -12,7 +12,7 @@ import { contactPage } from './pages/contact';
 import { blogPage, blogPostPage } from './pages/blog';
 import { visualizePage } from './pages/visualize';
 import { agentPage } from './pages/agent';
-import { portalPage, loginPage, adminLoginPage } from './pages/portal';
+// Old portal imports removed - using new portal pages
 import { adminDashboard, adminCustomers, adminQuotes, adminMessages } from './pages/admin';
 import { adminGalleryPage } from './pages/admin-gallery';
 import { adminMessagesPage } from './pages/admin-messages';
@@ -20,6 +20,7 @@ import { adminCustomersPage } from './pages/admin-customers';
 import { adminQuotesPage } from './pages/admin-quotes';
 import { adminJobsPage } from './pages/admin-jobs';
 import { adminInvoicesPage } from './pages/admin-invoices';
+import { portalLoginPage, portalDashboard, portalQuotes, portalInvoices, portalJobs, requirePortalAuth } from './pages/portal';
 import { galleryPage, galleryCategoryPage } from './pages/gallery';
 
 // Routes
@@ -71,27 +72,8 @@ app.get('/gallery/:slug', galleryCategoryPage);
 // Payment page (public - anyone with link can pay)
 app.get('/pay/:invoice_id', paymentPage);
 
-// Auth pages
-app.get('/login', loginPage);
-app.get('/admin/login', adminLoginPage);
-
-// Protected portal (check session manually for redirect)
-app.get('/portal', async (c) => {
-  const token = getCookie(c, 'hb_session');
-  
-  if (!token) {
-    return c.redirect('/login');
-  }
-  
-  const customer = await getSession(c.env.DB, token);
-  
-  if (!customer) {
-    return c.redirect('/login?error=invalid');
-  }
-  
-  c.set('customer', customer);
-  return portalPage(c);
-});
+// Auth pages - redirect to portal login
+app.get('/login', (c) => c.redirect('/portal/login'));
 
 // Admin routes (protected)
 app.get('/admin', requireAdmin, adminDashboard);
@@ -117,6 +99,85 @@ app.get('/admin/invoices', requireAdmin, adminInvoicesPage);
 app.get('/admin/settings', requireAdmin, async (c) => {
   return c.redirect('/admin');
 });
+
+// ============ CUSTOMER PORTAL ============
+app.get('/portal/login', portalLoginPage);
+app.post('/portal/login', async (c) => {
+  const { email } = await c.req.parseBody();
+  
+  // Find customer
+  const customer = await c.env.DB.prepare(
+    'SELECT * FROM customers WHERE email = ?'
+  ).bind(email).first<any>();
+  
+  if (!customer) {
+    return c.redirect('/portal/login?error=not_found');
+  }
+  
+  // Generate magic token
+  const token = crypto.randomUUID();
+  const expires = Math.floor(Date.now() / 1000) + (15 * 60); // 15 minutes
+  
+  await c.env.DB.prepare(
+    'UPDATE customers SET magic_token = ?, token_expires_at = ? WHERE id = ?'
+  ).bind(token, expires, customer.id).run();
+  
+  // Build magic link
+  const magicLink = `https://handybeaver.co/portal/verify?token=${token}`;
+  
+  // TODO: Send email via Cloudflare Email or Resend
+  // For now, log it and redirect with success
+  console.log('Magic link for', email, ':', magicLink);
+  
+  return c.redirect('/portal/login?success=1');
+});
+
+app.get('/portal/verify', async (c) => {
+  const token = c.req.query('token');
+  
+  if (!token) {
+    return c.redirect('/portal/login?error=invalid');
+  }
+  
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Find customer by token
+  const customer = await c.env.DB.prepare(
+    'SELECT * FROM customers WHERE magic_token = ? AND token_expires_at > ?'
+  ).bind(token, now).first<any>();
+  
+  if (!customer) {
+    return c.redirect('/portal/login?error=expired');
+  }
+  
+  // Create session
+  const sessionToken = crypto.randomUUID();
+  const sessionExpires = now + (7 * 24 * 60 * 60); // 7 days
+  
+  await c.env.DB.prepare(`
+    INSERT INTO customer_sessions (customer_id, token, expires_at, created_at)
+    VALUES (?, ?, ?, ?)
+  `).bind(customer.id, sessionToken, sessionExpires, now).run();
+  
+  // Clear magic token
+  await c.env.DB.prepare(
+    'UPDATE customers SET magic_token = NULL, token_expires_at = NULL WHERE id = ?'
+  ).bind(customer.id).run();
+  
+  // Set cookie and redirect
+  c.header('Set-Cookie', `hb_portal=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`);
+  return c.redirect('/portal');
+});
+
+app.get('/portal/logout', (c) => {
+  c.header('Set-Cookie', 'hb_portal=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+  return c.redirect('/portal/login');
+});
+
+app.get('/portal', requirePortalAuth, portalDashboard);
+app.get('/portal/quotes', requirePortalAuth, portalQuotes);
+app.get('/portal/invoices', requirePortalAuth, portalInvoices);
+app.get('/portal/jobs', requirePortalAuth, portalJobs);
 
 // Health check
 app.get('/health', (c) => {
