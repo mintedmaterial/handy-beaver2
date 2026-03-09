@@ -68,6 +68,13 @@ CREATE TABLE IF NOT EXISTS project_images (
   created_at INTEGER DEFAULT (unixepoch())
 );
 
+-- Settings (key-value store)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at INTEGER DEFAULT (unixepoch())
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);
