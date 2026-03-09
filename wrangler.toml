@@ -23,6 +23,10 @@ bucket_name = "handy-beaver-images"
 [browser]
 binding = "BROWSER"
 
+# Workers AI (fallback for image generation)
+[ai]
+binding = "AI"
+
 
 
 

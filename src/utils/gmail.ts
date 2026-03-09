@@ -38,20 +38,33 @@ async function getAccessToken(env: GmailEnv): Promise<string | null> {
   }
 }
 
+// RFC 2047 encode subject for proper UTF-8/emoji support
+function encodeSubject(subject: string): string {
+  // Use Base64 encoding for the subject to handle emojis properly
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(subject);
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return `=?UTF-8?B?${base64}?=`;
+}
+
 // Encode email to base64url format for Gmail API
 function encodeEmail(to: string, from: string, subject: string, html: string): string {
+  const encodedSubject = encodeSubject(subject);
+  
   const email = [
     `To: ${to}`,
     `From: ${from}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodedSubject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
     '',
     html,
   ].join('\r\n');
 
-  // Base64url encode
-  const base64 = btoa(unescape(encodeURIComponent(email)));
+  // Base64url encode the entire message
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(email);
+  const base64 = btoa(String.fromCharCode(...bytes));
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 

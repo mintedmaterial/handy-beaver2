@@ -241,7 +241,6 @@ export const layout = (title: string, content: string, activeNav?: string) => `
       <li><a href="/gallery" ${activeNav === 'gallery' ? 'style="color: var(--secondary)"' : ''}>Gallery</a></li>
       <li><a href="/about" ${activeNav === 'about' ? 'style="color: var(--secondary)"' : ''}>About</a></li>
       <li><a href="/contact" ${activeNav === 'contact' ? 'style="color: var(--secondary)"' : ''}>Contact</a></li>
-      <li><a href="/visualize" ${activeNav === 'visualize' ? 'style="color: var(--secondary)"' : ''}>AI Visualizer</a></li>
       <li><a href="/portal" class="btn btn-primary" style="padding: 0.5rem 1rem">Customer Portal</a></li>
     </ul>
   </nav>

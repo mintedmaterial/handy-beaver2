@@ -161,6 +161,7 @@ export const adminLayout = (title: string, content: string, activePage: string =
       <a href="/admin/customers" class="${activePage === 'customers' ? 'active' : ''}">👥 Customers</a>
       <a href="/admin/messages" class="${activePage === 'messages' ? 'active' : ''}">💬 Messages</a>
       <div class="divider"></div>
+      <a href="/admin/visualizer" class="${activePage === 'visualizer' ? 'active' : ''}">✨ AI Visualizer</a>
       <a href="/admin/invoices" class="${activePage === 'invoices' ? 'active' : ''}">📄 Invoices</a>
       <a href="/admin/gallery" class="${activePage === 'gallery' ? 'active' : ''}">🖼️ Gallery</a>
       <div class="divider"></div>

@@ -35,70 +35,87 @@ export const visualizePage = (c: Context) => {
         
         <div class="card">
           <div id="visualizer-app">
-            <form id="visualize-form" style="display: flex; flex-direction: column; gap: 1.5rem;">
-              <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--primary);">
-                  📸 Upload Your Photo
-                </label>
-                <div 
-                  id="drop-zone"
-                  style="
-                    border: 2px dashed #ccc; 
-                    border-radius: 12px; 
-                    padding: 3rem 2rem; 
-                    text-align: center;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    background: #fafafa;
-                  "
+            <!-- Auth gate - shown when not logged in -->
+            <div id="auth-gate" style="display: none; text-align: center; padding: 2rem;">
+              <div style="font-size: 4rem; margin-bottom: 1rem;">🔐</div>
+              <h3 style="color: var(--primary);">Sign In Required</h3>
+              <p style="color: #666; margin: 1rem 0;">
+                To use the AI Visualizer, please sign in to your customer portal or request a free quote.
+              </p>
+              <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem;">
+                <a href="/portal/login" class="btn btn-primary">Sign In →</a>
+                <a href="/contact" class="btn btn-secondary">Get Free Quote</a>
+              </div>
+            </div>
+            
+            <!-- Main visualizer form -->
+            <div id="visualizer-form-container">
+              <form id="visualize-form" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div>
+                  <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--primary);">
+                    📸 Upload Your Photo
+                  </label>
+                  <div 
+                    id="drop-zone"
+                    style="
+                      border: 2px dashed #ccc; 
+                      border-radius: 12px; 
+                      padding: 3rem 2rem; 
+                      text-align: center;
+                      cursor: pointer;
+                      transition: all 0.3s;
+                      background: #fafafa;
+                    "
+                  >
+                    <div style="font-size: 3rem; margin-bottom: 0.5rem;">📷</div>
+                    <p style="color: #666; margin-bottom: 0.5rem;">Drag & drop your photo here</p>
+                    <p style="color: #999; font-size: 0.85rem;">or click to browse (max 10MB)</p>
+                    <input type="file" id="photo-input" accept="image/*" style="display: none;">
+                  </div>
+                  <div id="preview-container" style="display: none; margin-top: 1rem; text-align: center;">
+                    <img id="photo-preview" style="max-width: 100%; max-height: 300px; border-radius: 8px;">
+                    <button type="button" id="clear-photo" style="margin-top: 0.5rem; color: #999; background: none; border: none; cursor: pointer;">
+                      ✕ Remove photo
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--primary);">
+                    🎨 Describe Your Vision
+                  </label>
+                  <textarea 
+                    id="prompt-input"
+                    rows="3"
+                    placeholder="Example: Show this deck with dark walnut stain and new white railings..."
+                    style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; resize: vertical;"
+                  ></textarea>
+                </div>
+                
+                <div id="usage-info" style="padding: 1rem; background: var(--secondary); color: white; border-radius: 8px; text-align: center;">
+                  <span id="usage-text">Loading...</span>
+                </div>
+                
+                <button 
+                  type="submit" 
+                  id="visualize-btn"
+                  class="btn btn-primary" 
+                  style="width: 100%;"
+                  disabled
                 >
-                  <div style="font-size: 3rem; margin-bottom: 0.5rem;">📷</div>
-                  <p style="color: #666; margin-bottom: 0.5rem;">Drag & drop your photo here</p>
-                  <p style="color: #999; font-size: 0.85rem;">or click to browse</p>
-                  <input type="file" id="photo-input" accept="image/*" style="display: none;">
-                </div>
-                <div id="preview-container" style="display: none; margin-top: 1rem; text-align: center;">
-                  <img id="photo-preview" style="max-width: 100%; max-height: 300px; border-radius: 8px;">
-                  <button type="button" id="clear-photo" style="margin-top: 0.5rem; color: #999; background: none; border: none; cursor: pointer;">
-                    ✕ Remove photo
-                  </button>
-                </div>
-              </div>
-              
-              <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--primary);">
-                  🎨 Describe Your Vision
-                </label>
-                <textarea 
-                  id="prompt-input"
-                  rows="3"
-                  placeholder="Example: Show this deck with dark walnut stain and new white railings..."
-                  style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; resize: vertical;"
-                ></textarea>
-              </div>
-              
-              <div id="usage-info" style="padding: 1rem; background: var(--secondary); color: white; border-radius: 8px; text-align: center;">
-                <span id="usage-text">🎁 You have <strong>3 free visualizations</strong> remaining</span>
-                <p style="font-size: 0.85rem; margin-top: 0.5rem; opacity: 0.9;">
-                  <a href="/portal" style="color: white;">Sign up</a> for unlimited access!
-                </p>
-              </div>
-              
-              <button 
-                type="submit" 
-                id="visualize-btn"
-                class="btn btn-primary" 
-                style="width: 100%;"
-              >
-                ✨ Generate Visualization
-              </button>
-            </form>
+                  ✨ Generate Visualization
+                </button>
+              </form>
+            </div>
             
             <div id="result-container" style="display: none; margin-top: 2rem;">
               <h3 style="color: var(--primary); margin-bottom: 1rem;">Your Visualization</h3>
               <div id="result-image" style="background: #f9f9f9; border-radius: 8px; min-height: 200px; display: flex; align-items: center; justify-content: center;">
                 <p style="color: #999;">Generating...</p>
               </div>
+              <p id="watermark-notice" style="font-size: 0.85rem; color: #999; text-align: center; margin-top: 0.5rem;">
+                Images include The Handy Beaver watermark
+              </p>
               <div style="margin-top: 1rem; display: flex; gap: 1rem;">
                 <button type="button" id="download-btn" class="btn btn-secondary" style="flex: 1;">
                   📥 Download
@@ -153,38 +170,83 @@ export const visualizePage = (c: Context) => {
     </section>
     
     <script>
-      // Usage tracking
-      const MAX_FREE_USES = 3;
-      let usageCount = parseInt(localStorage.getItem('visualizerUsage') || '0');
-      const isCustomer = localStorage.getItem('customerToken');
+      // State
+      let usageStatus = null;
+      let selectedFile = null;
+      let resultImageUrl = null;
       
-      function updateUsageDisplay() {
-        const remaining = MAX_FREE_USES - usageCount;
-        const usageText = document.getElementById('usage-text');
-        const usageInfo = document.getElementById('usage-info');
-        
-        if (isCustomer) {
-          usageInfo.style.background = 'var(--primary)';
-          usageText.innerHTML = '✓ <strong>Unlimited access</strong> as a customer';
-        } else if (remaining <= 0) {
-          usageInfo.style.background = '#dc3545';
-          usageText.innerHTML = '⚠️ <strong>Free uses exhausted</strong>';
-          document.getElementById('visualize-btn').disabled = true;
-          document.getElementById('visualize-btn').textContent = 'Sign up for more';
-        } else {
-          usageText.innerHTML = \`🎁 You have <strong>\${remaining} free visualization\${remaining === 1 ? '' : 's'}</strong> remaining\`;
-        }
-      }
-      
-      updateUsageDisplay();
-      
-      // File upload handling
+      // Elements
+      const authGate = document.getElementById('auth-gate');
+      const formContainer = document.getElementById('visualizer-form-container');
       const dropZone = document.getElementById('drop-zone');
       const photoInput = document.getElementById('photo-input');
       const previewContainer = document.getElementById('preview-container');
       const photoPreview = document.getElementById('photo-preview');
       const clearPhoto = document.getElementById('clear-photo');
+      const usageInfo = document.getElementById('usage-info');
+      const usageText = document.getElementById('usage-text');
+      const visualizeBtn = document.getElementById('visualize-btn');
+      const resultContainer = document.getElementById('result-container');
+      const resultImage = document.getElementById('result-image');
       
+      // Check auth & usage status on load
+      async function checkStatus() {
+        try {
+          const res = await fetch('/api/visualize/status');
+          usageStatus = await res.json();
+          
+          if (!usageStatus.authorized) {
+            // Show auth gate, hide form
+            authGate.style.display = 'block';
+            formContainer.style.display = 'none';
+            return;
+          }
+          
+          // Show form, hide auth gate
+          authGate.style.display = 'none';
+          formContainer.style.display = 'block';
+          
+          updateUsageDisplay();
+        } catch (e) {
+          console.error('Status check failed:', e);
+          usageText.innerHTML = '⚠️ Unable to check status';
+          usageInfo.style.background = '#dc3545';
+        }
+      }
+      
+      function updateUsageDisplay() {
+        if (!usageStatus) return;
+        
+        if (usageStatus.isAdmin || usageStatus.unlimited) {
+          usageInfo.style.background = 'var(--primary)';
+          usageText.innerHTML = '👑 <strong>Admin Access</strong> - Unlimited visualizations';
+          visualizeBtn.disabled = false;
+          return;
+        }
+        
+        const remaining = usageStatus.remaining;
+        const limit = usageStatus.limit;
+        
+        if (remaining <= 0) {
+          usageInfo.style.background = '#dc3545';
+          usageText.innerHTML = '⚠️ <strong>Daily limit reached</strong> (\\${limit}/day)';
+          visualizeBtn.disabled = true;
+          visualizeBtn.textContent = 'Limit Reached';
+        } else {
+          usageInfo.style.background = 'var(--secondary)';
+          usageText.innerHTML = \`🎨 <strong>\${remaining} of \${limit}</strong> visualizations remaining today\`;
+          visualizeBtn.disabled = false;
+        }
+        
+        // Show customer name if available
+        if (usageStatus.name) {
+          usageText.innerHTML += \`<br><span style="font-size: 0.85rem; opacity: 0.9;">Signed in as \${usageStatus.name}</span>\`;
+        }
+      }
+      
+      checkStatus();
+      
+      // File upload handling
       dropZone.addEventListener('click', () => photoInput.click());
       dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -211,6 +273,7 @@ export const visualizePage = (c: Context) => {
       
       clearPhoto.addEventListener('click', () => {
         photoInput.value = '';
+        selectedFile = null;
         previewContainer.style.display = 'none';
         dropZone.style.display = 'block';
       });
@@ -220,6 +283,11 @@ export const visualizePage = (c: Context) => {
           alert('Please upload an image file');
           return;
         }
+        if (file.size > 10 * 1024 * 1024) {
+          alert('Image too large (max 10MB)');
+          return;
+        }
+        selectedFile = file;
         const reader = new FileReader();
         reader.onload = (e) => {
           photoPreview.src = e.target.result;
@@ -233,38 +301,82 @@ export const visualizePage = (c: Context) => {
       document.getElementById('visualize-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        if (!isCustomer && usageCount >= MAX_FREE_USES) {
-          window.location.href = '/portal';
-          return;
-        }
-        
-        const prompt = document.getElementById('prompt-input').value;
-        if (!photoPreview.src || !prompt) {
+        const prompt = document.getElementById('prompt-input').value.trim();
+        if (!selectedFile || !prompt) {
           alert('Please upload a photo and describe your vision');
           return;
         }
         
-        const btn = document.getElementById('visualize-btn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Generating...';
+        visualizeBtn.disabled = true;
+        visualizeBtn.textContent = '⏳ Generating... (may take 30-60 seconds)';
         
-        // TODO: Call /api/images/visualize
-        // For now, simulate
-        setTimeout(() => {
-          usageCount++;
-          localStorage.setItem('visualizerUsage', usageCount);
-          updateUsageDisplay();
+        try {
+          const formData = new FormData();
+          formData.append('image', selectedFile);
+          formData.append('prompt', prompt);
           
-          document.getElementById('result-container').style.display = 'block';
-          document.getElementById('result-image').innerHTML = '<p style="color: var(--primary);">AI visualization coming soon! For now, contact us for a free consultation.</p>';
+          const res = await fetch('/api/visualize/generate', {
+            method: 'POST',
+            body: formData,
+          });
           
-          btn.disabled = false;
-          btn.textContent = '✨ Generate Visualization';
-        }, 2000);
+          const result = await res.json();
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Generation failed');
+          }
+          
+          // Show result
+          resultContainer.style.display = 'block';
+          
+          if (result.demo) {
+            resultImage.innerHTML = \`
+              <div style="padding: 2rem; text-align: center;">
+                <p style="color: var(--primary); font-weight: bold;">\${result.message}</p>
+                <p style="color: #666; margin-top: 1rem;">We've logged your request. Contact us for a consultation!</p>
+                <a href="/contact" class="btn btn-primary" style="margin-top: 1rem;">Get Free Quote →</a>
+              </div>
+            \`;
+          } else {
+            resultImageUrl = result.resultUrl;
+            resultImage.innerHTML = \`
+              <img src="\${result.resultUrl}" style="max-width: 100%; border-radius: 8px;">
+            \`;
+          }
+          
+          // Refresh usage status
+          await checkStatus();
+          
+        } catch (error) {
+          alert('Error: ' + error.message);
+        } finally {
+          visualizeBtn.disabled = usageStatus?.remaining <= 0;
+          visualizeBtn.textContent = '✨ Generate Visualization';
+        }
       });
       
+      // Download button
+      document.getElementById('download-btn').addEventListener('click', async () => {
+        if (!resultImageUrl) return;
+        
+        try {
+          const res = await fetch(resultImageUrl);
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'handy-beaver-visualization.jpg';
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          console.error('Download failed:', e);
+        }
+      });
+      
+      // New visualization button
       document.getElementById('new-btn').addEventListener('click', () => {
-        document.getElementById('result-container').style.display = 'none';
+        resultContainer.style.display = 'none';
+        resultImageUrl = null;
         clearPhoto.click();
         document.getElementById('prompt-input').value = '';
       });
