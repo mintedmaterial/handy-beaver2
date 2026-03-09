@@ -308,32 +308,45 @@ Enhanced prompt:`
       const errorText = await response.text();
       console.error('Gemini API error:', response.status, errorText);
       
-      // Fallback to Cloudflare Workers AI
+      // Fallback to Cloudflare Workers AI (try multiple models)
       if (c.env.AI) {
-        console.log('Falling back to CF Workers AI');
+        console.log('Gemini failed, trying CF Workers AI fallbacks');
         generationMethod = 'workers-ai';
         
-        try {
-          const cfResult = await c.env.AI.run(
-            '@cf/stabilityai/stable-diffusion-xl-base-1.0',
-            {
-              prompt: `Home improvement visualization: ${enhancedPrompt}. Professional photo, realistic lighting, high quality.`,
-              // Note: Workers AI SD doesn't support image-to-image, so this is text-to-image only
+        // Try Flux first (best quality), then Leonardo, then SD
+        const models = [
+          '@cf/black-forest-labs/flux-1-schnell',
+          '@cf/lykon/dreamshaper-8-lcm',
+          '@cf/stabilityai/stable-diffusion-xl-base-1.0',
+        ];
+        
+        let cfResult: ArrayBuffer | null = null;
+        for (const model of models) {
+          try {
+            console.log(`Trying model: ${model}`);
+            cfResult = await c.env.AI.run(model, {
+              prompt: `Professional home improvement photo: ${enhancedPrompt}. Realistic, high quality, natural lighting.`,
+            }) as ArrayBuffer;
+            if (cfResult) {
+              console.log(`Success with model: ${model}`);
+              generationMethod = `workers-ai/${model.split('/').pop()}`;
+              break;
             }
-          );
-          
-          if (cfResult) {
-            // CF Workers AI returns ArrayBuffer - use chunked conversion
-            const buffer = new Uint8Array(cfResult);
-            let cfBinary = '';
-            for (let i = 0; i < buffer.length; i += 8192) {
-              cfBinary += String.fromCharCode(...buffer.slice(i, i + 8192));
-            }
-            generatedImageBase64 = btoa(cfBinary);
+          } catch (modelErr) {
+            console.error(`Model ${model} failed:`, modelErr);
           }
-        } catch (cfError) {
-          console.error('CF Workers AI fallback failed:', cfError);
-          throw new Error('AI generation failed (both Gemini and fallback)');
+        }
+        
+        if (cfResult) {
+          // CF Workers AI returns ArrayBuffer - use chunked conversion
+          const buffer = new Uint8Array(cfResult);
+          let cfBinary = '';
+          for (let i = 0; i < buffer.length; i += 8192) {
+            cfBinary += String.fromCharCode(...buffer.slice(i, i + 8192));
+          }
+          generatedImageBase64 = btoa(cfBinary);
+        } else {
+          throw new Error('All CF models failed');
         }
       } else {
         throw new Error('AI generation failed');
