@@ -494,12 +494,15 @@ async function scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionCon
   // Trigger internal scan by making a request
   // Note: In production, you'd call the scraper logic directly here
   // For now, we'll notify Discord that the cron ran
-  const webhookUrl = await env.DB.prepare(
+  const webhookResult = await env.DB.prepare(
     "SELECT value FROM settings WHERE key = 'discord_webhook'"
-  ).first<{ value: string }>();
+  ).first<{ value: string }>().catch(() => null);
   
-  if (webhookUrl?.value) {
-    await fetch(webhookUrl.value, {
+  // Use settings table or fall back to env var
+  const webhookUrl = webhookResult?.value || env.DISCORD_WEBHOOK_NOTIFICATIONS;
+  
+  if (webhookUrl) {
+    await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
