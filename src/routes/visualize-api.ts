@@ -197,9 +197,15 @@ visualizeApi.post('/generate', async (c) => {
   }
   
   try {
-    // Convert image to base64
+    // Convert image to base64 (chunked to avoid stack overflow)
     const imageBuffer = await imageFile.arrayBuffer();
-    const imageBase64 = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+    const bytes = new Uint8Array(imageBuffer);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
+    }
+    const imageBase64 = btoa(binary);
     
     // Store input image in R2
     const inputKey = `visualizer/input/${Date.now()}-${crypto.randomUUID()}.${imageFile.type.split('/')[1]}`;
@@ -316,9 +322,13 @@ Enhanced prompt:`
           );
           
           if (cfResult) {
-            // CF Workers AI returns ArrayBuffer
+            // CF Workers AI returns ArrayBuffer - use chunked conversion
             const buffer = new Uint8Array(cfResult);
-            generatedImageBase64 = btoa(String.fromCharCode(...buffer));
+            let cfBinary = '';
+            for (let i = 0; i < buffer.length; i += 8192) {
+              cfBinary += String.fromCharCode(...buffer.slice(i, i + 8192));
+            }
+            generatedImageBase64 = btoa(cfBinary);
           }
         } catch (cfError) {
           console.error('CF Workers AI fallback failed:', cfError);

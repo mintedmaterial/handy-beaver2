@@ -17,7 +17,7 @@ import { agentPage } from './pages/agent';
 import { adminDashboard, adminCustomers, adminQuotes, adminMessages } from './pages/admin';
 import { adminVisualizerPage } from './pages/admin-visualizer';
 import { adminLoginPage } from './pages/admin-login';
-import { portalVisualizerPage } from './pages/portal-visualizer';
+import { portalVisualizerPage, portalGalleryPage } from './pages/portal-visualizer';
 import { adminGalleryPage } from './pages/admin-gallery';
 import { adminMessagesPage } from './pages/admin-messages';
 import { adminCustomersPage } from './pages/admin-customers';
@@ -272,6 +272,7 @@ app.post('/portal/messages', requirePortalAuth, async (c) => {
   return c.redirect('/portal/messages');
 });
 app.get('/portal/visualizer', requirePortalAuth, portalVisualizerPage);
+app.get('/portal/gallery', requirePortalAuth, portalGalleryPage);
 
 // Health check
 app.get('/health', (c) => {

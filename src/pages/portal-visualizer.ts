@@ -203,7 +203,7 @@ const portalVisualizerLayout = (title: string, content: string, customer?: any) 
       <a href="/portal/invoices">📄 Invoices</a>
       <a href="/portal/jobs">🛠️ Job History</a>
       <a href="/portal/messages">💬 Messages</a>
-      <a href="/visualize" class="active">✨ AI Visualizer</a>
+      <a href="/portal/visualizer">✨ AI Visualizer</a>
       <a href="/portal/gallery">🖼️ My Gallery</a>
     </aside>
     
@@ -215,7 +215,8 @@ const portalVisualizerLayout = (title: string, content: string, customer?: any) 
 </html>
 `;
 
-export const portalVisualizerPage = async (c: Context) => {
+// Gallery page - shows user's past visualizations
+export const portalGalleryPage = async (c: Context) => {
   const customer = c.get('customer');
   const customerId = customer?.customer_id;
   
@@ -330,4 +331,196 @@ export const portalVisualizerPage = async (c: Context) => {
   `;
   
   return c.html(portalVisualizerLayout('My Gallery', content, customer));
+};
+
+// Visualizer generator page - create new visualizations
+export const portalVisualizerPage = async (c: Context) => {
+  const db = c.env.DB;
+  const portalToken = c.req.header('Cookie')?.match(/hb_portal=([^;]+)/)?.[1];
+  
+  if (!portalToken) {
+    return c.redirect('/portal/login');
+  }
+  
+  const now = Math.floor(Date.now() / 1000);
+  const customer = await db.prepare(`
+    SELECT cs.*, c.* FROM customer_sessions cs
+    JOIN customers c ON cs.customer_id = c.id
+    WHERE cs.token = ? AND cs.expires_at > ?
+  `).bind(portalToken, now).first<any>();
+  
+  if (!customer) {
+    return c.redirect('/portal/login');
+  }
+
+  // Get usage limits
+  const usageLimits: Record<string, number> = { lead: 3, prospect: 3, quote: 3, active: 10, completed: 5 };
+  const limit = usageLimits[customer.status] || 3;
+  
+  const startOfDay = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
+  const usage = await db.prepare(`
+    SELECT COUNT(*) as count FROM visualizer_usage 
+    WHERE customer_id = ? AND created_at >= ?
+  `).bind(customer.customer_id, startOfDay).first<{ count: number }>();
+  
+  const usedToday = usage?.count || 0;
+  const remaining = Math.max(0, limit - usedToday);
+
+  const content = `
+    <h1 style="margin-bottom: 0.5rem; color: var(--primary);">✨ AI Project Visualizer</h1>
+    <p style="color: #666; margin-bottom: 1.5rem;">See your finished project before we start</p>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2 style="margin: 0; color: var(--primary);">Generate Visualization</h2>
+          <span style="background: ${remaining > 0 ? '#d1fae5' : '#fee2e2'}; color: ${remaining > 0 ? '#065f46' : '#991b1b'}; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600;">
+            ${remaining} of ${limit} remaining today
+          </span>
+        </div>
+        
+        <form id="visualize-form" style="display: flex; flex-direction: column; gap: 1.5rem;">
+          <div>
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">📸 Upload Your Photo</label>
+            <div id="drop-zone" style="border: 2px dashed #ccc; border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; background: #fafafa;">
+              <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📷</div>
+              <p style="color: #666;">Drag & drop or click to upload</p>
+              <input type="file" id="photo-input" accept="image/*" style="display: none;">
+            </div>
+            <div id="preview-container" style="display: none; margin-top: 1rem; text-align: center;">
+              <img id="photo-preview" style="max-width: 100%; max-height: 250px; border-radius: 8px;">
+              <button type="button" id="clear-photo" style="margin-top: 0.5rem; color: #666; background: none; border: none; cursor: pointer;">✕ Clear</button>
+            </div>
+          </div>
+          
+          <div>
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">🎨 Describe Your Vision</label>
+            <textarea id="prompt-input" rows="3" placeholder="Example: Show this deck with dark walnut stain..." style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem;"></textarea>
+          </div>
+          
+          <button type="submit" id="visualize-btn" class="btn btn-primary" style="width: 100%;" ${remaining <= 0 ? 'disabled' : ''}>
+            ${remaining > 0 ? '✨ Generate Visualization' : '⚠️ Daily Limit Reached'}
+          </button>
+        </form>
+        
+        <div id="result-container" style="display: none; margin-top: 1.5rem;">
+          <h3 style="color: var(--primary); margin-bottom: 1rem;">Your Visualization</h3>
+          <div id="result-image" style="background: #f9f9f9; border-radius: 8px; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+            <p style="color: #666;">Generating...</p>
+          </div>
+          <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+            <button type="button" id="download-btn" class="btn btn-secondary" style="flex: 1;">📥 Download</button>
+            <button type="button" id="new-btn" class="btn btn-primary" style="flex: 1;">🔄 New</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2 style="color: var(--primary); margin-bottom: 1rem;">💡 Tips for Best Results</h2>
+        <ul style="padding-left: 1.5rem; color: #555; line-height: 2;">
+          <li><strong>Good lighting:</strong> Take photos in daylight</li>
+          <li><strong>Full view:</strong> Include the whole area to transform</li>
+          <li><strong>Be specific:</strong> Mention exact colors, wood types, finishes</li>
+          <li><strong>Examples:</strong> "Dark walnut semi-transparent stain", "White semi-gloss trim"</li>
+        </ul>
+        <div style="margin-top: 2rem; padding: 1rem; background: #f9f9f9; border-radius: 8px;">
+          <a href="/portal/gallery" style="color: var(--primary); text-decoration: none; font-weight: 600;">🖼️ View My Gallery →</a>
+          <p style="color: #666; font-size: 0.85rem; margin-top: 0.5rem;">See your past visualizations</p>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      const dropZone = document.getElementById('drop-zone');
+      const photoInput = document.getElementById('photo-input');
+      const previewContainer = document.getElementById('preview-container');
+      const photoPreview = document.getElementById('photo-preview');
+      const visualizeBtn = document.getElementById('visualize-btn');
+      const resultContainer = document.getElementById('result-container');
+      const resultImage = document.getElementById('result-image');
+      
+      let selectedFile = null;
+      let resultImageUrl = null;
+      
+      dropZone.addEventListener('click', () => photoInput.click());
+      dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; });
+      dropZone.addEventListener('dragleave', () => dropZone.style.borderColor = '#ccc');
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#ccc';
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+      });
+      
+      photoInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+      });
+      
+      document.getElementById('clear-photo').addEventListener('click', () => {
+        selectedFile = null;
+        photoInput.value = '';
+        previewContainer.style.display = 'none';
+        dropZone.style.display = 'block';
+      });
+      
+      function handleFile(file) {
+        if (!file.type.startsWith('image/')) { alert('Please upload an image'); return; }
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          photoPreview.src = e.target.result;
+          previewContainer.style.display = 'block';
+          dropZone.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+      
+      document.getElementById('visualize-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const prompt = document.getElementById('prompt-input').value.trim();
+        if (!selectedFile || !prompt) { alert('Please upload a photo and describe your vision'); return; }
+        
+        visualizeBtn.disabled = true;
+        visualizeBtn.textContent = '⏳ Generating...';
+        resultContainer.style.display = 'block';
+        resultImage.innerHTML = '<p style="color: #666;">Generating your visualization...</p>';
+        
+        try {
+          const formData = new FormData();
+          formData.append('image', selectedFile);
+          formData.append('prompt', prompt);
+          
+          const res = await fetch('/api/visualize/generate', { method: 'POST', body: formData });
+          const result = await res.json();
+          
+          if (!result.success) throw new Error(result.error || 'Generation failed');
+          
+          resultImageUrl = result.resultUrl;
+          resultImage.innerHTML = result.demo 
+            ? '<p style="color: #666;">Demo mode - visualization coming soon!</p>'
+            : '<img src="' + result.resultUrl + '" style="max-width: 100%; border-radius: 8px;">';
+        } catch (error) {
+          resultImage.innerHTML = '<p style="color: #991b1b;">Error: ' + error.message + '</p>';
+        } finally {
+          visualizeBtn.disabled = false;
+          visualizeBtn.textContent = '✨ Generate Visualization';
+        }
+      });
+      
+      document.getElementById('download-btn').addEventListener('click', async () => {
+        if (!resultImageUrl) return;
+        const a = document.createElement('a');
+        a.href = resultImageUrl;
+        a.download = 'visualization.jpg';
+        a.click();
+      });
+      
+      document.getElementById('new-btn').addEventListener('click', () => {
+        document.getElementById('clear-photo').click();
+        document.getElementById('prompt-input').value = '';
+        resultContainer.style.display = 'none';
+      });
+    </script>
+  `;
+  
+  return c.html(portalVisualizerLayout('AI Visualizer', content, customer));
 };
