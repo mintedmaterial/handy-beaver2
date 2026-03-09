@@ -318,12 +318,12 @@ Enhanced prompt:`
     }
     
     // Convert ArrayBuffer to base64 (chunked to avoid stack overflow)
-    const buffer = new Uint8Array(cfResult);
-    let binary = '';
-    for (let i = 0; i < buffer.length; i += 8192) {
-      binary += String.fromCharCode(...buffer.slice(i, i + 8192));
+    const outputBuffer = new Uint8Array(cfResult);
+    let outputBinary = '';
+    for (let i = 0; i < outputBuffer.length; i += 8192) {
+      outputBinary += String.fromCharCode(...outputBuffer.slice(i, i + 8192));
     }
-    generatedImageBase64 = btoa(binary);
+    generatedImageBase64 = btoa(outputBinary);
     
     // Convert base64 to buffer
     const generatedBuffer = Uint8Array.from(atob(generatedImageBase64), c => c.charCodeAt(0));
