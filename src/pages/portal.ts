@@ -128,7 +128,7 @@ const portalLayout = (title: string, content: string, customer?: any) => `
       <a href="/portal/invoices">📄 Invoices</a>
       <a href="/portal/jobs">🛠️ Job History</a>
       <a href="/portal/messages">💬 Messages</a>
-      <a href="/visualize">✨ AI Visualizer</a>
+      <a href="/portal/visualizer">✨ AI Visualizer</a>
       <a href="/portal/gallery">🖼️ My Gallery</a>
     </aside>
     
