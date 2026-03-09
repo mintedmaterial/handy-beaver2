@@ -126,9 +126,54 @@ app.post('/portal/login', async (c) => {
   // Build magic link
   const magicLink = `https://handybeaver.co/portal/verify?token=${token}`;
   
-  // TODO: Send email via Cloudflare Email or Resend
-  // For now, log it and redirect with success
-  console.log('Magic link for', email, ':', magicLink);
+  // Send email via MailChannels (free with Cloudflare Workers)
+  try {
+    const emailRes = await fetch('https://api.mailchannels.net/tx/v1/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email: email as string, name: customer.name }],
+        }],
+        from: {
+          email: 'portal@handybeaver.co',
+          name: 'The Handy Beaver',
+        },
+        subject: 'Your Login Link 🦫',
+        content: [{
+          type: 'text/html',
+          value: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #8B4513, #D2691E); padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0;">🦫 The Handy Beaver</h1>
+              </div>
+              <div style="padding: 30px; background: #f9f9f9;">
+                <h2 style="color: #333;">Hi ${customer.name?.split(' ')[0] || 'there'}!</h2>
+                <p style="color: #666; font-size: 16px;">Click the button below to access your customer portal:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${magicLink}" style="background: #8B4513; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-size: 18px; font-weight: bold;">
+                    Log In to Portal →
+                  </a>
+                </div>
+                <p style="color: #999; font-size: 14px;">This link expires in 15 minutes.</p>
+                <p style="color: #999; font-size: 14px;">If you didn't request this, you can ignore this email.</p>
+              </div>
+              <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
+                The Handy Beaver | SE Oklahoma<br>
+                Traveling Craftsman & Maintenance Services
+              </div>
+            </div>
+          `,
+        }],
+      }),
+    });
+    
+    if (!emailRes.ok) {
+      console.error('Email send failed:', await emailRes.text());
+    }
+  } catch (e) {
+    console.error('Email error:', e);
+  }
   
   return c.redirect('/portal/login?success=1');
 });
@@ -456,7 +501,37 @@ async function scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionCon
   console.log('Cron completed');
 }
 
+// Email handler for inbound emails
+async function email(message: any, env: Bindings) {
+  const to = message.to;
+  const from = message.from;
+  const subject = message.headers.get('subject') || '';
+  const rawEmail = await new Response(message.raw).text();
+  
+  console.log(`Inbound email: ${from} -> ${to}, Subject: ${subject}`);
+  
+  // Store in messages table if we can identify the customer
+  const customer = await env.DB.prepare(
+    'SELECT * FROM customers WHERE email = ?'
+  ).bind(from).first<any>();
+  
+  if (customer) {
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare(`
+      INSERT INTO messages (customer_id, sender, content, source, created_at)
+      VALUES (?, 'customer', ?, 'email', ?)
+    `).bind(customer.id, `Subject: ${subject}\n\n${rawEmail.slice(0, 2000)}`, now).run();
+  }
+  
+  // Forward to admin for non-portal emails
+  if (to.includes('contact@') || to.includes('admin@')) {
+    // Already forwarded via Cloudflare Email Routing to serviceflowagi@gmail.com
+    console.log('Contact/admin email will be forwarded via CF routing');
+  }
+}
+
 export default {
   fetch: app.fetch,
   scheduled,
+  email,
 };

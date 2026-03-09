@@ -38,10 +38,14 @@ ENVIRONMENT = "development"
 # - FACEBOOK_PAGE_ID
 # - FACEBOOK_PAGE_ACCESS_TOKEN
 
-# Email routing (requires email routing enabled on domain)
-# send_email = [
-#   { name = "EMAIL_HANDLER" }
-# ]
+# Email routing - send emails from the worker
+# Addresses configured in Cloudflare Email Routing:
+# - noreply@handybeaver.co (send to worker)
+# - portal@handybeaver.co (send to worker)
+# - admin@handybeaver.co (send to worker)
+send_email = [
+  { name = "SEND_EMAIL" }
+]
 
 # Cron triggers - Facebook group scan every 30 minutes
 [triggers]
