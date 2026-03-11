@@ -104,6 +104,9 @@ app.get('/admin/jobs', requireAdmin, adminJobsPage);
 app.get('/admin/jobs/:id', requireAdmin, adminJobDetail);
 app.get('/admin/invoices', requireAdmin, adminInvoicesPage);
 app.get('/admin/invoices/:id', requireAdmin, adminInvoiceDetail);
+app.get('/admin/payments', requireAdmin, async (c) => {
+  return c.redirect('/admin/invoices');
+});
 app.get('/admin/settings', requireAdmin, async (c) => {
   return c.redirect('/admin');
 });
