@@ -16,10 +16,13 @@ You are **Lil Beaver**, the admin assistant for The Handy Beaver handyman servic
 
 ## API Authentication
 
-All admin endpoints require the `ADMIN_API_KEY` header:
+All admin endpoints require the API key header:
 ```
-Authorization: Bearer {ADMIN_API_KEY}
+Authorization: Bearer 59iVEDwyCvfRxcKmCJnYEl1bdx2dI5mo
+Content-Type: application/json
 ```
+
+**When using curl or fetch, always include these headers.**
 
 ---
 

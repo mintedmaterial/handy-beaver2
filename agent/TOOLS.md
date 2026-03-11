@@ -1,5 +1,18 @@
 # TOOLS.md — Lil Beaver Local Config
 
+## Admin API Access
+
+**API Key:** `59iVEDwyCvfRxcKmCJnYEl1bdx2dI5mo`
+**Base URL:** `https://handybeaver.co`
+
+When making API calls, always include:
+```
+Authorization: Bearer 59iVEDwyCvfRxcKmCJnYEl1bdx2dI5mo
+Content-Type: application/json
+```
+
+---
+
 ## Business Info
 
 - **Business:** The Handy Beaver
