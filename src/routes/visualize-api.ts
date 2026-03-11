@@ -135,8 +135,34 @@ visualizeApi.post('/generate', async (c) => {
     const admin = await getAdmin(c.env.DB, adminToken);
     if (admin) {
       isAdmin = true;
-      // Admin uses null for tracking (no FK constraint)
-      customerId = null;
+      // Look up or create customer record for admin
+      // Use admin's email if available, otherwise create one based on github_id
+      const adminDetails = await c.env.DB.prepare(`
+        SELECT id, email FROM admins WHERE id = ?
+      `).bind(admin.id).first<{ id: number; email: string | null }>();
+      
+      if (adminDetails?.email) {
+        // Find or create customer record for this admin
+        let adminCustomer = await c.env.DB.prepare(`
+          SELECT id FROM customers WHERE email = ?
+        `).bind(adminDetails.email).first<{ id: number }>();
+        
+        if (!adminCustomer) {
+          // Create customer record for admin
+          await c.env.DB.prepare(`
+            INSERT INTO customers (email, name, status, created_at, updated_at)
+            VALUES (?, 'Admin', 'admin', unixepoch(), unixepoch())
+          `).bind(adminDetails.email).run();
+          
+          adminCustomer = await c.env.DB.prepare(`
+            SELECT id FROM customers WHERE email = ?
+          `).bind(adminDetails.email).first<{ id: number }>();
+        }
+        
+        if (adminCustomer) {
+          customerId = adminCustomer.id;
+        }
+      }
     }
   }
   
@@ -162,8 +188,8 @@ visualizeApi.post('/generate', async (c) => {
     }
   }
   
-  // Require auth (admin OR customer)
-  if (!isAdmin && customerId === null) {
+  // Require auth (must have a valid customerId)
+  if (customerId === null) {
     return c.json({
       success: false,
       error: 'Please sign in or request a quote to use the AI Visualizer',
