@@ -4,16 +4,49 @@ type Bindings = {
   DB: D1Database;
   OPENCLAW_GATEWAY_URL?: string;
   OPENCLAW_GATEWAY_TOKEN?: string;
+  OPENCLAW_MODEL_ADMIN?: string;
+  OPENCLAW_MODEL_CUSTOMER?: string;
 };
 
 export const chatApi = new Hono<{ Bindings: Bindings }>();
 
+function extractAssistantText(data: any): string | null {
+  if (typeof data?.output_text === 'string' && data.output_text.trim()) {
+    return data.output_text.trim();
+  }
+
+  const output = Array.isArray(data?.output) ? data.output : [];
+  for (const item of output) {
+    if (item?.type === 'message' && item?.role === 'assistant') {
+      if (typeof item.content === 'string' && item.content.trim()) return item.content.trim();
+      if (Array.isArray(item.content)) {
+        const joined = item.content
+          .map((part: any) => {
+            if (typeof part === 'string') return part;
+            if (typeof part?.text === 'string') return part.text;
+            if (typeof part?.content === 'string') return part.content;
+            return '';
+          })
+          .join('\n')
+          .trim();
+        if (joined) return joined;
+      }
+    }
+  }
+
+  return null;
+}
+
+
 // Chat with Lil Beaver via OpenClaw Gateway
 chatApi.post('/', async (c) => {
-  const { mode, context, messages, message } = await c.req.json();
+  const { mode, context, messages } = await c.req.json();
   
   const gatewayUrl = c.env.OPENCLAW_GATEWAY_URL || 'http://localhost:18789';
   const gatewayToken = c.env.OPENCLAW_GATEWAY_TOKEN;
+  const model = mode === 'admin'
+    ? (c.env.OPENCLAW_MODEL_ADMIN || 'openclaw:lil-beaver')
+    : (c.env.OPENCLAW_MODEL_CUSTOMER || 'openclaw:lil-beaver');
   
   if (!gatewayToken) {
     return c.json({ 
@@ -125,9 +158,14 @@ Service area: Southeast Oklahoma.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openclaw:lil-beaver',
+        model,
         input,
         user: mode === 'admin' ? 'admin-chat' : `customer-${context?.customerId || 'guest'}`,
+        metadata: {
+          mode,
+          customerId: context?.customerId || null,
+          portalScoped: mode !== 'admin',
+        },
         max_output_tokens: 500,
       }),
     });
@@ -140,14 +178,10 @@ Service area: Southeast Oklahoma.`;
     }
     
     const data = await response.json() as any;
-    
-    // Extract the assistant response
-    const assistantMessage = data.output?.find((item: any) => 
-      item.type === 'message' && item.role === 'assistant'
-    );
-    
+    const assistantText = extractAssistantText(data);
+
     return c.json({ 
-      response: assistantMessage?.content || "I understood, but I'm not sure how to respond. Can you rephrase?" 
+      response: assistantText || "I understood, but I'm not sure how to respond. Can you rephrase?" 
     });
   } catch (error) {
     console.error('Chat API error:', error);

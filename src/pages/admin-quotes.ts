@@ -404,34 +404,34 @@ export const adminQuoteDetail = async (c: Context) => {
       </div>
       
       <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
-        <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+        <div class="card" style="padding: 1.5rem; background: #fff; border-radius: 8px;">
           <h3 style="margin-top: 0;">Quote Details</h3>
           
           <table style="width: 100%; border-collapse: collapse;">
-            <tr style="border-bottom: 1px solid #333;">
+            <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 0.75rem 0;">Labor (${quote.labor_type || 'Standard'})</td>
               <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(laborTotal)}</td>
             </tr>
             ${quote.helper_needed ? `
-            <tr style="border-bottom: 1px solid #333;">
+            <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 0.75rem 0;">Helper (${quote.helper_type || 'Standard'})</td>
               <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(helperTotal)}</td>
             </tr>
             ` : ''}
             ${quote.materials_estimate ? `
-            <tr style="border-bottom: 1px solid #333;">
+            <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 0.75rem 0;">Materials (estimate)</td>
               <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(quote.materials_estimate)}</td>
             </tr>
             ` : ''}
             ${quote.equipment_estimate ? `
-            <tr style="border-bottom: 1px solid #333;">
+            <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 0.75rem 0;">Equipment</td>
               <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(quote.equipment_estimate)}</td>
             </tr>
             ` : ''}
             ${quote.discount_percent ? `
-            <tr style="border-bottom: 1px solid #333; color: #10b981;">
+            <tr style="border-bottom: 1px solid #e5e7eb; color: #10b981;">
               <td style="padding: 0.75rem 0;">Discount (${quote.discount_percent}%)</td>
               <td style="padding: 0.75rem 0; text-align: right;">-${formatMoney((quote.subtotal || 0) * quote.discount_percent / 100)}</td>
             </tr>
@@ -443,7 +443,7 @@ export const adminQuoteDetail = async (c: Context) => {
           </table>
           
           ${quote.notes ? `
-          <div style="margin-top: 1.5rem; padding: 1rem; background: #111; border-radius: 6px;">
+          <div style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e5e7eb;">
             <strong>Notes:</strong>
             <p style="margin: 0.5rem 0 0; white-space: pre-wrap;">${quote.notes}</p>
           </div>
@@ -456,7 +456,7 @@ export const adminQuoteDetail = async (c: Context) => {
         </div>
         
         <div>
-          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+          <div class="card" style="padding: 1.5rem; background: #fff; border-radius: 8px;">
             <h3 style="margin-top: 0;">Customer</h3>
             <p><strong>${quote.customer_name}</strong></p>
             <p><a href="mailto:${quote.customer_email}">${quote.customer_email}</a></p>

@@ -135,34 +135,9 @@ visualizeApi.post('/generate', async (c) => {
     const admin = await getAdmin(c.env.DB, adminToken);
     if (admin) {
       isAdmin = true;
-      // Look up or create customer record for admin
-      // Use admin's email if available, otherwise create one based on github_id
-      const adminDetails = await c.env.DB.prepare(`
-        SELECT id, email FROM admins WHERE id = ?
-      `).bind(admin.id).first<{ id: number; email: string | null }>();
-      
-      if (adminDetails?.email) {
-        // Find or create customer record for this admin
-        let adminCustomer = await c.env.DB.prepare(`
-          SELECT id FROM customers WHERE email = ?
-        `).bind(adminDetails.email).first<{ id: number }>();
-        
-        if (!adminCustomer) {
-          // Create customer record for admin
-          await c.env.DB.prepare(`
-            INSERT INTO customers (email, name, status, created_at, updated_at)
-            VALUES (?, 'Admin', 'admin', unixepoch(), unixepoch())
-          `).bind(adminDetails.email).run();
-          
-          adminCustomer = await c.env.DB.prepare(`
-            SELECT id FROM customers WHERE email = ?
-          `).bind(adminDetails.email).first<{ id: number }>();
-        }
-        
-        if (adminCustomer) {
-          customerId = adminCustomer.id;
-        }
-      }
+      // Admin usage does not require a linked customer row.
+      // Schema v8 allows visualizer_usage.customer_id to be NULL for admin usage.
+      customerId = null;
     }
   }
   

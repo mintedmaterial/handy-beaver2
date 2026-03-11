@@ -13,7 +13,7 @@ export const chatWidgetStyles = `
     border: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     cursor: pointer;
-    z-index: 999;
+    z-index: 1002;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -44,10 +44,11 @@ export const chatWidgetStyles = `
     z-index: 1001;
     display: flex;
     flex-direction: column;
-    transform: translateY(100%);
+    transform: translateY(calc(100% + 120px));
+    pointer-events: none;
     transition: transform 0.3s ease-out;
   }
-  .chat-panel.open { transform: translateY(0); }
+  .chat-panel.open { transform: translateY(0); pointer-events: auto; }
   
   .chat-header {
     display: flex;
@@ -207,10 +208,13 @@ export const chatWidgetHTML = (mode: 'admin' | 'customer', context?: { customerI
     let chatHistory = [];
     
     function toggleChat() {
-      document.getElementById('chat-panel').classList.toggle('open');
-      document.querySelector('.chat-overlay').classList.toggle('open');
-      if (document.getElementById('chat-panel').classList.contains('open')) {
-        document.getElementById('chat-input').focus();
+      const panel = document.getElementById('chat-panel');
+      const overlay = document.querySelector('.chat-overlay');
+      if (!panel || !overlay) return;
+      panel.classList.toggle('open');
+      overlay.classList.toggle('open');
+      if (panel.classList.contains('open')) {
+        document.getElementById('chat-input')?.focus();
       }
     }
     
