@@ -29,6 +29,7 @@
     "@hono/zod-validator": "^0.7.6",
     "hono": "^4.12.5",
     "mimetext": "^3.0.28",
+    "square": "^44.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

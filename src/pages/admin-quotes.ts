@@ -357,3 +357,137 @@ export const adminQuotesPage = async (c: Context) => {
   
   return c.html(adminLayout('Quotes', content, 'quotes', admin));
 };
+
+// Quote detail page
+export const adminQuoteDetail = async (c: Context) => {
+  const admin = c.get('admin');
+  const quoteId = c.req.param('id');
+  
+  const quote = await c.env.DB.prepare(`
+    SELECT q.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone
+    FROM quotes q
+    JOIN customers c ON q.customer_id = c.id
+    WHERE q.id = ?
+  `).bind(quoteId).first<any>();
+  
+  if (!quote) {
+    return c.notFound();
+  }
+  
+  const statusColors: Record<string, string> = {
+    draft: '#6b7280',
+    sent: '#3b82f6',
+    accepted: '#10b981',
+    declined: '#ef4444',
+    expired: '#f59e0b',
+  };
+  
+  const formatDate = (ts: number) => ts ? new Date(ts * 1000).toLocaleDateString() : '-';
+  const formatMoney = (amt: number) => amt ? `$${Number(amt).toFixed(2)}` : '$0.00';
+  
+  const laborTotal = (quote.labor_rate || 0) * (quote.estimated_hours || 1);
+  const helperTotal = quote.helper_needed ? (quote.helper_rate || 0) : 0;
+  
+  const content = `
+    <div class="quote-detail">
+      <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <a href="/admin/quotes" style="color: #666; text-decoration: none;">← Back to Quotes</a>
+          <h1 style="margin: 0.5rem 0;">Quote #${quote.id}</h1>
+          <span style="background: ${statusColors[quote.status] || '#6b7280'}; color: white; padding: 4px 12px; border-radius: 4px;">${quote.status}</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          ${quote.status === 'draft' ? `<button class="btn-primary" onclick="sendQuote()">Send to Customer</button>` : ''}
+          ${quote.status === 'accepted' ? `<button class="btn-primary" onclick="createJob()">Create Job</button>` : ''}
+          <button class="btn-secondary" onclick="downloadPdf()">Download PDF</button>
+        </div>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+        <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+          <h3 style="margin-top: 0;">Quote Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 0.75rem 0;">Labor (${quote.labor_type || 'Standard'})</td>
+              <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(laborTotal)}</td>
+            </tr>
+            ${quote.helper_needed ? `
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 0.75rem 0;">Helper (${quote.helper_type || 'Standard'})</td>
+              <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(helperTotal)}</td>
+            </tr>
+            ` : ''}
+            ${quote.materials_estimate ? `
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 0.75rem 0;">Materials (estimate)</td>
+              <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(quote.materials_estimate)}</td>
+            </tr>
+            ` : ''}
+            ${quote.equipment_estimate ? `
+            <tr style="border-bottom: 1px solid #333;">
+              <td style="padding: 0.75rem 0;">Equipment</td>
+              <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(quote.equipment_estimate)}</td>
+            </tr>
+            ` : ''}
+            ${quote.discount_percent ? `
+            <tr style="border-bottom: 1px solid #333; color: #10b981;">
+              <td style="padding: 0.75rem 0;">Discount (${quote.discount_percent}%)</td>
+              <td style="padding: 0.75rem 0; text-align: right;">-${formatMoney((quote.subtotal || 0) * quote.discount_percent / 100)}</td>
+            </tr>
+            ` : ''}
+            <tr style="font-size: 1.25rem; font-weight: 600;">
+              <td style="padding: 1rem 0;">Total</td>
+              <td style="padding: 1rem 0; text-align: right; color: #f97316;">${formatMoney(quote.total)}</td>
+            </tr>
+          </table>
+          
+          ${quote.notes ? `
+          <div style="margin-top: 1.5rem; padding: 1rem; background: #111; border-radius: 6px;">
+            <strong>Notes:</strong>
+            <p style="margin: 0.5rem 0 0; white-space: pre-wrap;">${quote.notes}</p>
+          </div>
+          ` : ''}
+          
+          <div style="margin-top: 1rem; color: #666; font-size: 0.9rem;">
+            <p>Created: ${formatDate(quote.created_at)}</p>
+            ${quote.valid_until ? `<p>Valid until: ${formatDate(quote.valid_until)}</p>` : ''}
+          </div>
+        </div>
+        
+        <div>
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+            <h3 style="margin-top: 0;">Customer</h3>
+            <p><strong>${quote.customer_name}</strong></p>
+            <p><a href="mailto:${quote.customer_email}">${quote.customer_email}</a></p>
+            <p><a href="tel:${quote.customer_phone}">${quote.customer_phone || '-'}</a></p>
+            <a href="/admin/customers/${quote.customer_id}" class="btn-secondary" style="margin-top: 0.5rem; display: inline-block;">View Customer</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      async function sendQuote() {
+        if (!confirm('Send this quote to ${quote.customer_email}?')) return;
+        const res = await fetch('/api/admin/quotes/${quote.id}/send', { method: 'POST' });
+        const result = await res.json();
+        if (result.success) {
+          location.reload();
+        } else {
+          alert(result.error || 'Failed to send');
+        }
+      }
+      
+      function createJob() {
+        window.location.href = '/admin/jobs?new=1&quote=${quote.id}';
+      }
+      
+      function downloadPdf() {
+        window.open('/api/admin/quotes/${quote.id}/pdf', '_blank');
+      }
+    </script>
+  `;
+  
+  return c.html(adminLayout(`Quote #${quote.id}`, content, 'quotes', admin));
+};

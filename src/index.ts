@@ -21,9 +21,9 @@ import { portalVisualizerPage, portalGalleryPage } from './pages/portal-visualiz
 import { adminGalleryPage } from './pages/admin-gallery';
 import { adminMessagesPage } from './pages/admin-messages';
 import { adminCustomersPage, adminCustomerDetail } from './pages/admin-customers';
-import { adminQuotesPage } from './pages/admin-quotes';
-import { adminJobsPage } from './pages/admin-jobs';
-import { adminInvoicesPage } from './pages/admin-invoices';
+import { adminQuotesPage, adminQuoteDetail } from './pages/admin-quotes';
+import { adminJobsPage, adminJobDetail } from './pages/admin-jobs';
+import { adminInvoicesPage, adminInvoiceDetail } from './pages/admin-invoices';
 import { portalLoginPage, portalDashboard, portalQuotes, portalQuoteDetail, portalInvoices, portalInvoiceDetail, portalJobs, portalMessages, requirePortalAuth } from './pages/portal';
 import { galleryPage, galleryCategoryPage } from './pages/gallery';
 
@@ -108,8 +108,11 @@ app.get('/admin/messages/:customerId', requireAdmin, adminMessagesPage); // Hand
 app.get('/admin/customers', requireAdmin, adminCustomersPage);
 app.get('/admin/customers/:id', requireAdmin, adminCustomerDetail);
 app.get('/admin/quotes', requireAdmin, adminQuotesPage);
+app.get('/admin/quotes/:id', requireAdmin, adminQuoteDetail);
 app.get('/admin/jobs', requireAdmin, adminJobsPage);
+app.get('/admin/jobs/:id', requireAdmin, adminJobDetail);
 app.get('/admin/invoices', requireAdmin, adminInvoicesPage);
+app.get('/admin/invoices/:id', requireAdmin, adminInvoiceDetail);
 app.get('/admin/settings', requireAdmin, async (c) => {
   return c.redirect('/admin');
 });

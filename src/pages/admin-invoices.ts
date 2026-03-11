@@ -376,3 +376,230 @@ export const adminInvoicesPage = async (c: Context) => {
   
   return c.html(adminLayout('Invoices', content, 'invoices', admin));
 };
+
+// Invoice detail page
+export const adminInvoiceDetail = async (c: Context) => {
+  const admin = c.get('admin');
+  const invoiceId = c.req.param('id');
+  
+  const invoice = await c.env.DB.prepare(`
+    SELECT i.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.address
+    FROM invoices i
+    JOIN customers c ON i.customer_id = c.id
+    WHERE i.id = ?
+  `).bind(invoiceId).first<any>();
+  
+  if (!invoice) {
+    return c.notFound();
+  }
+  
+  // Get related job if exists
+  let job = null;
+  if (invoice.booking_id) {
+    job = await c.env.DB.prepare(`SELECT * FROM bookings WHERE id = ?`).bind(invoice.booking_id).first<any>();
+  }
+  
+  // Get payments
+  const payments = await c.env.DB.prepare(`
+    SELECT * FROM payments WHERE invoice_id = ? ORDER BY created_at DESC
+  `).bind(invoiceId).all<any>();
+  
+  const statusColors: Record<string, string> = {
+    draft: '#6b7280',
+    sent: '#3b82f6',
+    paid: '#10b981',
+    partial: '#f59e0b',
+    overdue: '#ef4444',
+    cancelled: '#6b7280',
+  };
+  
+  const formatDate = (ts: number) => ts ? new Date(ts * 1000).toLocaleDateString() : '-';
+  const formatMoney = (amt: number) => amt ? `$${Number(amt).toFixed(2)}` : '$0.00';
+  
+  const balance = (invoice.total || 0) - (invoice.amount_paid || 0);
+  const paymentUrl = `${c.req.url.split('/admin')[0]}/pay/${invoice.id}`;
+  
+  const content = `
+    <div class="invoice-detail">
+      <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <a href="/admin/invoices" style="color: #666; text-decoration: none;">← Back to Invoices</a>
+          <h1 style="margin: 0.5rem 0;">Invoice ${invoice.invoice_number || '#' + invoice.id}</h1>
+          <span style="background: ${statusColors[invoice.status] || '#6b7280'}; color: white; padding: 4px 12px; border-radius: 4px;">${invoice.status}</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          ${invoice.status === 'draft' ? `<button class="btn-primary" onclick="sendInvoice()">Send to Customer</button>` : ''}
+          <button class="btn-secondary" onclick="copyPaymentLink()">Copy Payment Link</button>
+          <button class="btn-secondary" onclick="downloadPdf()">Download PDF</button>
+        </div>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+        <div>
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px; margin-bottom: 1rem;">
+            <h3 style="margin-top: 0;">Invoice Details</h3>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              ${invoice.labor_amount ? `
+              <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 0.75rem 0;">Labor</td>
+                <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(invoice.labor_amount)}</td>
+              </tr>
+              ` : ''}
+              ${invoice.helper_amount ? `
+              <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 0.75rem 0;">Helper</td>
+                <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(invoice.helper_amount)}</td>
+              </tr>
+              ` : ''}
+              ${invoice.materials_amount ? `
+              <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 0.75rem 0;">Materials</td>
+                <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(invoice.materials_amount)}</td>
+              </tr>
+              ` : ''}
+              ${invoice.equipment_amount ? `
+              <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 0.75rem 0;">Equipment</td>
+                <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(invoice.equipment_amount)}</td>
+              </tr>
+              ` : ''}
+              ${invoice.discount_amount ? `
+              <tr style="border-bottom: 1px solid #333; color: #10b981;">
+                <td style="padding: 0.75rem 0;">Discount</td>
+                <td style="padding: 0.75rem 0; text-align: right;">-${formatMoney(invoice.discount_amount)}</td>
+              </tr>
+              ` : ''}
+              ${invoice.tax_amount ? `
+              <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 0.75rem 0;">Tax (${invoice.tax_rate}%)</td>
+                <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(invoice.tax_amount)}</td>
+              </tr>
+              ` : ''}
+              <tr style="font-weight: 600;">
+                <td style="padding: 0.75rem 0;">Total</td>
+                <td style="padding: 0.75rem 0; text-align: right;">${formatMoney(invoice.total)}</td>
+              </tr>
+              ${invoice.amount_paid ? `
+              <tr style="color: #10b981;">
+                <td style="padding: 0.75rem 0;">Amount Paid</td>
+                <td style="padding: 0.75rem 0; text-align: right;">-${formatMoney(invoice.amount_paid)}</td>
+              </tr>
+              ` : ''}
+              ${balance > 0 ? `
+              <tr style="font-size: 1.25rem; font-weight: 700; color: #f97316;">
+                <td style="padding: 1rem 0;">Balance Due</td>
+                <td style="padding: 1rem 0; text-align: right;">${formatMoney(balance)}</td>
+              </tr>
+              ` : ''}
+            </table>
+            
+            ${invoice.notes ? `
+            <div style="margin-top: 1.5rem; padding: 1rem; background: #111; border-radius: 6px;">
+              <strong>Notes:</strong>
+              <p style="margin: 0.5rem 0 0; white-space: pre-wrap;">${invoice.notes}</p>
+            </div>
+            ` : ''}
+            
+            <div style="margin-top: 1rem; color: #666; font-size: 0.9rem;">
+              <p>Created: ${formatDate(invoice.created_at)}</p>
+              ${invoice.due_date ? `<p>Due: ${formatDate(invoice.due_date)}</p>` : ''}
+              ${invoice.sent_at ? `<p>Sent: ${formatDate(invoice.sent_at)}</p>` : ''}
+            </div>
+          </div>
+          
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+            <h3 style="margin-top: 0;">Payment History</h3>
+            ${payments.results?.length ? `
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="color: #888; border-bottom: 1px solid #333;">
+                  <th style="padding: 0.5rem; text-align: left;">Date</th>
+                  <th style="padding: 0.5rem; text-align: left;">Type</th>
+                  <th style="padding: 0.5rem; text-align: right;">Amount</th>
+                  <th style="padding: 0.5rem; text-align: left;">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${payments.results.map((p: any) => `
+                <tr style="border-bottom: 1px solid #222;">
+                  <td style="padding: 0.5rem;">${formatDate(p.created_at)}</td>
+                  <td style="padding: 0.5rem;">${p.type}</td>
+                  <td style="padding: 0.5rem; text-align: right;">${formatMoney(p.amount)}</td>
+                  <td style="padding: 0.5rem;">${p.status}</td>
+                </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            ` : '<p style="color: #666;">No payments yet.</p>'}
+            
+            ${balance > 0 ? `
+            <button class="btn-primary" style="margin-top: 1rem;" onclick="recordPayment()">Record Payment</button>
+            ` : ''}
+          </div>
+        </div>
+        
+        <div>
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px; margin-bottom: 1rem;">
+            <h3 style="margin-top: 0;">Customer</h3>
+            <p><strong>${invoice.customer_name}</strong></p>
+            <p><a href="mailto:${invoice.customer_email}">${invoice.customer_email}</a></p>
+            <p><a href="tel:${invoice.customer_phone}">${invoice.customer_phone || '-'}</a></p>
+            <p>${invoice.address || '-'}</p>
+            <a href="/admin/customers/${invoice.customer_id}" class="btn-secondary" style="margin-top: 0.5rem; display: inline-block;">View Customer</a>
+          </div>
+          
+          ${job ? `
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px; margin-bottom: 1rem;">
+            <h3 style="margin-top: 0;">Related Job</h3>
+            <p><strong>${job.title}</strong></p>
+            <p>Status: ${job.status}</p>
+            <a href="/admin/jobs/${job.id}" class="btn-secondary" style="margin-top: 0.5rem; display: inline-block;">View Job</a>
+          </div>
+          ` : ''}
+          
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+            <h3 style="margin-top: 0;">Payment Link</h3>
+            <input type="text" value="${paymentUrl}" readonly style="width: 100%; padding: 0.5rem; background: #111; border: 1px solid #333; border-radius: 4px; color: #fff; margin-bottom: 0.5rem;">
+            <button class="btn-secondary" style="width: 100%;" onclick="copyPaymentLink()">Copy Link</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      async function sendInvoice() {
+        if (!confirm('Send this invoice to ${invoice.customer_email}?')) return;
+        const res = await fetch('/api/admin/invoices/${invoice.id}/send', { method: 'POST' });
+        const result = await res.json();
+        if (result.success) {
+          location.reload();
+        } else {
+          alert(result.error || 'Failed to send');
+        }
+      }
+      
+      function copyPaymentLink() {
+        navigator.clipboard.writeText('${paymentUrl}').then(() => {
+          alert('Payment link copied!');
+        });
+      }
+      
+      function downloadPdf() {
+        window.open('/api/admin/invoices/${invoice.id}/pdf', '_blank');
+      }
+      
+      function recordPayment() {
+        const amount = prompt('Enter payment amount:', '${balance.toFixed(2)}');
+        if (!amount) return;
+        fetch('/api/admin/invoices/${invoice.id}/payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: parseFloat(amount), type: 'manual' })
+        }).then(() => location.reload());
+      }
+    </script>
+  `;
+  
+  return c.html(adminLayout(`Invoice ${invoice.invoice_number || '#' + invoice.id}`, content, 'invoices', admin));
+};

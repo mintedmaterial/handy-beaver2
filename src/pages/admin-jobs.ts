@@ -257,3 +257,139 @@ export const adminJobsPage = async (c: Context) => {
   
   return c.html(adminLayout('Jobs', content, 'jobs', admin));
 };
+
+// Job detail page
+export const adminJobDetail = async (c: Context) => {
+  const admin = c.get('admin');
+  const jobId = c.req.param('id');
+  
+  const job = await c.env.DB.prepare(`
+    SELECT b.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.address
+    FROM bookings b
+    JOIN customers c ON b.customer_id = c.id
+    WHERE b.id = ?
+  `).bind(jobId).first<any>();
+  
+  if (!job) {
+    return c.notFound();
+  }
+  
+  // Get job notes
+  const notes = await c.env.DB.prepare(`
+    SELECT * FROM job_notes WHERE booking_id = ? ORDER BY created_at DESC
+  `).bind(jobId).all<any>();
+  
+  const statusColors: Record<string, string> = {
+    pending: '#f59e0b',
+    confirmed: '#3b82f6',
+    in_progress: '#8b5cf6',
+    completed: '#10b981',
+    cancelled: '#ef4444',
+  };
+  
+  const formatDate = (ts: number) => ts ? new Date(ts * 1000).toLocaleDateString() : '-';
+  const formatMoney = (amt: number) => amt ? `$${Number(amt).toFixed(2)}` : '-';
+  
+  const content = `
+    <div class="job-detail">
+      <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <a href="/admin/jobs" style="color: #666; text-decoration: none;">← Back to Jobs</a>
+          <h1 style="margin: 0.5rem 0;">${job.title}</h1>
+          <span style="background: ${statusColors[job.status] || '#6b7280'}; color: white; padding: 4px 12px; border-radius: 4px;">${job.status}</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <select id="status-select" onchange="updateStatus()" style="padding: 0.5rem; border-radius: 4px; background: #222; color: white; border: 1px solid #444;">
+            <option value="pending" ${job.status === 'pending' ? 'selected' : ''}>Pending</option>
+            <option value="confirmed" ${job.status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
+            <option value="in_progress" ${job.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+            <option value="completed" ${job.status === 'completed' ? 'selected' : ''}>Completed</option>
+            <option value="cancelled" ${job.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+          </select>
+          <button class="btn-primary" onclick="createInvoice()">Create Invoice</button>
+        </div>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+        <div>
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px; margin-bottom: 1rem;">
+            <h3 style="margin-top: 0;">Job Details</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div><strong>Service:</strong> ${job.service_type}</div>
+              <div><strong>Scheduled:</strong> ${job.scheduled_date || 'TBD'}</div>
+              <div><strong>Est. Hours:</strong> ${job.estimated_hours || '-'}</div>
+              <div><strong>Labor Rate:</strong> ${formatMoney(job.labor_rate)}</div>
+              <div><strong>Helper:</strong> ${job.helper_needed ? 'Yes' : 'No'}</div>
+              <div><strong>Helper Rate:</strong> ${formatMoney(job.helper_rate)}</div>
+              <div><strong>Materials Est:</strong> ${formatMoney(job.materials_estimate)}</div>
+              <div><strong>Created:</strong> ${formatDate(job.created_at)}</div>
+            </div>
+            ${job.description ? `<div style="margin-top: 1rem;"><strong>Description:</strong><br>${job.description}</div>` : ''}
+          </div>
+          
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+            <h3 style="margin-top: 0;">Notes</h3>
+            <div id="notes-list" style="max-height: 300px; overflow-y: auto;">
+              ${notes.results?.length ? notes.results.map((n: any) => `
+                <div style="padding: 0.75rem; background: #111; border-radius: 6px; margin-bottom: 0.5rem;">
+                  <div style="font-size: 0.8rem; color: #666;">${formatDate(n.created_at)}</div>
+                  <div>${n.content}</div>
+                </div>
+              `).join('') : '<p style="color: #666;">No notes yet.</p>'}
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+              <input type="text" id="new-note" placeholder="Add a note..." style="flex: 1; padding: 0.5rem; border-radius: 4px; background: #222; color: white; border: 1px solid #444;">
+              <button class="btn-primary" onclick="addNote()">Add</button>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px; margin-bottom: 1rem;">
+            <h3 style="margin-top: 0;">Customer</h3>
+            <p><strong>${job.customer_name}</strong></p>
+            <p><a href="mailto:${job.customer_email}">${job.customer_email}</a></p>
+            <p><a href="tel:${job.customer_phone}">${job.customer_phone || '-'}</a></p>
+            <p>${job.address || '-'}</p>
+            <a href="/admin/customers/${job.customer_id}" class="btn-secondary" style="margin-top: 0.5rem; display: inline-block;">View Customer</a>
+          </div>
+          
+          <div class="card" style="padding: 1.5rem; background: #1a1a1a; border-radius: 8px;">
+            <h3 style="margin-top: 0;">Financials</h3>
+            <p><strong>Deposit Paid:</strong> ${formatMoney(job.deposit_paid)}</p>
+            <p><strong>Total Paid:</strong> ${formatMoney(job.total_paid)}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      async function updateStatus() {
+        const status = document.getElementById('status-select').value;
+        await fetch('/api/admin/jobs/${job.id}', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        location.reload();
+      }
+      
+      async function addNote() {
+        const content = document.getElementById('new-note').value;
+        if (!content) return;
+        await fetch('/api/admin/jobs/${job.id}/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        location.reload();
+      }
+      
+      function createInvoice() {
+        window.location.href = '/admin/invoices?new=1&job=${job.id}';
+      }
+    </script>
+  `;
+  
+  return c.html(adminLayout(`Job: ${job.title}`, content, 'jobs', admin));
+};
