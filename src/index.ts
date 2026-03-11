@@ -14,7 +14,7 @@ import { blogPage, blogPostPage } from './pages/blog';
 import { visualizePage } from './pages/visualize';
 import { agentPage } from './pages/agent';
 // Old portal imports removed - using new portal pages
-import { adminDashboard, adminCustomers, adminQuotes, adminMessages } from './pages/admin';
+import { adminDashboard } from './pages/admin';
 import { adminVisualizerPage } from './pages/admin-visualizer';
 import { adminLoginPage } from './pages/admin-login';
 import { portalVisualizerPage, portalGalleryPage } from './pages/portal-visualizer';
@@ -92,19 +92,6 @@ app.get('/admin/login', adminLoginPage);
 
 // Admin routes (protected)
 app.get('/admin', requireAdmin, adminDashboard);
-app.get('/admin/customers', requireAdmin, adminCustomers);
-app.get('/admin/quotes', requireAdmin, adminQuotes);
-app.get('/admin/messages', requireAdmin, adminMessages);
-app.get('/admin/jobs', requireAdmin, async (c) => {
-  // Placeholder - will implement full job management
-  return c.redirect('/admin');
-});
-app.get('/admin/invoices', requireAdmin, async (c) => {
-  return c.redirect('/admin');
-});
-app.get('/admin/payments', requireAdmin, async (c) => {
-  return c.redirect('/admin');
-});
 app.get('/admin/gallery', requireAdmin, adminGalleryPage);
 app.get('/admin/visualizer', requireAdmin, adminVisualizerPage);
 app.get('/admin/messages', requireAdmin, adminMessagesPage);
@@ -117,6 +104,9 @@ app.get('/admin/jobs', requireAdmin, adminJobsPage);
 app.get('/admin/jobs/:id', requireAdmin, adminJobDetail);
 app.get('/admin/invoices', requireAdmin, adminInvoicesPage);
 app.get('/admin/invoices/:id', requireAdmin, adminInvoiceDetail);
+app.get('/admin/payments', requireAdmin, async (c) => {
+  return c.redirect('/admin/invoices');
+});
 app.get('/admin/settings', requireAdmin, async (c) => {
   return c.redirect('/admin');
 });
