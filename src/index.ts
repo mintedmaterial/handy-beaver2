@@ -505,25 +505,9 @@ async function scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionCon
     return;
   }
   
-  // Trigger internal scan by making a request
-  // Note: In production, you'd call the scraper logic directly here
-  // For now, we'll notify Discord that the cron ran
-  const webhookResult = await env.DB.prepare(
-    "SELECT value FROM settings WHERE key = 'discord_webhook'"
-  ).first<{ value: string }>().catch(() => null);
-  
-  // Use settings table or fall back to env var
-  const webhookUrl = webhookResult?.value || env.DISCORD_WEBHOOK_NOTIFICATIONS;
-  
-  if (webhookUrl) {
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: '🕐 Scheduled Facebook group scan triggered. Scanning 6 groups...',
-      }),
-    });
-  }
+  // Run scan silently - no Discord notification needed
+  // The scan results will be logged and stored, but we don't spam Discord
+  // TODO: Add daily summary instead of per-scan notifications
   
   console.log('Cron completed');
 }

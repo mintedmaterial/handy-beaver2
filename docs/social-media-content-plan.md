@@ -234,18 +234,40 @@ General: #HomeRepair #HomeMaintenance #FixerUpper #HomeImprovement
 
 ---
 
+## Facebook Groups (Weekly Advertising)
+
+Post in each group 1x per week (rotate days to avoid spam flags):
+
+| Group | URL | Best For |
+|-------|-----|----------|
+| Local Community | `facebook.com/groups/412909228814153` | General awareness |
+| Idabel Buy/Sell/Trade | `facebook.com/groups/idabelbuysletrade` | Service offers |
+| Local Group | `facebook.com/groups/476383569405020` | Community building |
+| Paris TX Swap Shop | `facebook.com/groups/theparistexasswapshop` | Cross-border reach |
+
+**Group Posting Rules:**
+- Keep posts helpful, not salesy
+- Include before/after photos when possible
+- Respond to all comments/inquiries quickly
+- Follow each group's rules strictly
+
+---
+
 ## Posting Tools & Automation
 
-### Recommended Workflow
-1. **Content Generation:** Lil Beaver/Sage drafts content
-2. **Image Generation:** Atlas-Warhol creates visuals
-3. **Review:** Minte/Flo approves before posting
-4. **Scheduling:** Use Postiz for multi-platform posting
+### Workflow (Approval-Based)
+1. **Content Generation:** Sage drafts content + generates image (atlas-warhol)
+2. **Approval:** Posts draft to Discord #social-media-marketing
+3. **Minte Review:** ✅ approve or ❌ deny with feedback
+4. **Publishing:** On approval → Facebook Graph API direct
 5. **Monitoring:** Track engagement, respond to comments
 
-### Automation Schedule
-- **Morning post:** Auto-scheduled for 8:30 AM CT
-- **Afternoon post:** Auto-scheduled for 5:00 PM CT
+**No Postiz** — using Facebook Graph API directly.
+
+### Schedule
+- **Morning post:** 8:30 AM CT (pending approval)
+- **Afternoon post:** 5:00 PM CT (pending approval)
+- **Group posts:** Rotate through groups (1 per day, 4 days/week)
 - **Blog posts:** Sunday evenings for Monday morning publishing
 
 ---
