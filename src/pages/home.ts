@@ -6,6 +6,31 @@ const { business, pricing } = siteConfig;
 
 export const homePage = (c: Context) => {
   const content = `
+    <style>
+      .home-hero-title { font-size: 4rem; }
+      .home-hero-tagline { font-size: 1.5rem; }
+      .home-pricing-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+      }
+
+      @media (max-width: 900px) {
+        .home-hero-title { font-size: 2.75rem; }
+      }
+
+      @media (max-width: 600px) {
+        .home-hero-title { font-size: 2.1rem; }
+        .home-hero-tagline { font-size: 1.1rem; }
+        .home-pricing-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.25rem;
+        }
+      }
+    </style>
+
     <!-- Hero Section -->
     <section style="
       padding: 6rem 2rem;
@@ -17,15 +42,13 @@ export const homePage = (c: Context) => {
         alt="${business.name} mascot"
         style="width: 200px; height: 200px; border-radius: 50%; border: 4px solid var(--secondary); box-shadow: 0 0 40px var(--card-glow);"
       >
-      <h1 style="
+      <h1 class="home-hero-title" style="
         font-family: 'Playfair Display', serif;
-        font-size: 4rem;
         color: var(--accent);
         margin: 1.5rem 0;
         text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
       ">${business.name}</h1>
-      <p style="
-        font-size: 1.5rem;
+      <p class="home-hero-tagline" style="
         color: var(--secondary);
         max-width: 600px;
         margin: 0 auto 2rem;
@@ -77,11 +100,11 @@ export const homePage = (c: Context) => {
       <div class="grid grid-2" style="max-width: 800px; margin: 0 auto;">
         <div class="card">
           <h3 style="color: var(--primary); font-size: 1.5rem; margin-bottom: 1rem;">Labor Rates</h3>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #eee;">
+          <div class="home-pricing-row" style="border-bottom: 1px solid #eee;">
             <span>Half Day (≤6 hours)</span>
             <span style="font-size: 1.5rem; font-weight: bold; color: var(--primary);">$${pricing.labor.underSixHours}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0;">
+          <div class="home-pricing-row">
             <span>Full Day (6+ hours)</span>
             <span style="font-size: 1.5rem; font-weight: bold; color: var(--primary);">$${pricing.labor.overSixHours}/day</span>
           </div>
@@ -89,11 +112,11 @@ export const homePage = (c: Context) => {
         
         <div class="card">
           <h3 style="color: var(--primary); font-size: 1.5rem; margin-bottom: 1rem;">Helper Rates</h3>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid #eee;">
+          <div class="home-pricing-row" style="border-bottom: 1px solid #eee;">
             <span>Half Day (≤6 hours)</span>
             <span style="font-size: 1.5rem; font-weight: bold; color: var(--primary);">$${pricing.helper.underSixHours}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0;">
+          <div class="home-pricing-row">
             <span>Full Day (6+ hours)</span>
             <span style="font-size: 1.5rem; font-weight: bold; color: var(--primary);">$${pricing.helper.overSixHours}/day</span>
           </div>

@@ -23,6 +23,7 @@ import { adminMessagesPage } from './pages/admin-messages';
 import { adminCustomersPage, adminCustomerDetail } from './pages/admin-customers';
 import { adminQuotesPage, adminQuoteDetail } from './pages/admin-quotes';
 import { adminJobsPage, adminJobDetail } from './pages/admin-jobs';
+import { adminCalendarPage } from './pages/admin-calendar';
 import { adminInvoicesPage, adminInvoiceDetail } from './pages/admin-invoices';
 import { portalLoginPage, portalDashboard, portalQuotes, portalQuoteDetail, portalInvoices, portalInvoiceDetail, portalJobs, portalMessages, requirePortalAuth } from './pages/portal';
 import { galleryPage, galleryCategoryPage } from './pages/gallery';
@@ -102,6 +103,7 @@ app.get('/admin/quotes', requireAdmin, adminQuotesPage);
 app.get('/admin/quotes/:id', requireAdmin, adminQuoteDetail);
 app.get('/admin/jobs', requireAdmin, adminJobsPage);
 app.get('/admin/jobs/:id', requireAdmin, adminJobDetail);
+app.get('/admin/calendar', requireAdmin, adminCalendarPage);
 app.get('/admin/invoices', requireAdmin, adminInvoicesPage);
 app.get('/admin/invoices/:id', requireAdmin, adminInvoiceDetail);
 app.get('/admin/settings', requireAdmin, async (c) => {

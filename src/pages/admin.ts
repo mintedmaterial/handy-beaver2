@@ -147,6 +147,67 @@ export const adminLayout = (title: string, content: string, activePage: string =
     
     /* Chat Widget */
     ${chatWidgetStyles}
+
+    @media (max-width: 1100px) {
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 900px) {
+      .admin-nav {
+        padding: 0.75rem 1rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+      .admin-nav .user {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .admin-layout {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      .sidebar {
+        display: flex;
+        overflow-x: auto;
+        border-right: 0;
+        border-bottom: 1px solid #e5e5e5;
+        padding: 0.5rem;
+        gap: 0.5rem;
+      }
+      .sidebar a {
+        border-left: 0;
+        border-bottom: 3px solid transparent;
+        white-space: nowrap;
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+      }
+      .sidebar a.active {
+        border-left-color: transparent;
+        border-bottom-color: #8B4513;
+      }
+      .sidebar .divider {
+        width: 1px;
+        height: auto;
+        margin: 0 0.25rem;
+      }
+      .main-content { padding: 1rem; }
+      .card { padding: 1rem; }
+      .table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+      .mobile-stack {
+        grid-template-columns: 1fr !important;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .stat-grid { grid-template-columns: 1fr; }
+      .stat .value { font-size: 1.6rem; }
+      .btn { width: 100%; text-align: center; }
+    }
   </style>
 </head>
 <body>
@@ -167,6 +228,7 @@ export const adminLayout = (title: string, content: string, activePage: string =
       <a href="/admin" class="${activePage === 'dashboard' ? 'active' : ''}"><img src="/api/assets/icons/dashboard.png" alt="" class="nav-icon"> Dashboard</a>
       <a href="/admin/quotes" class="${activePage === 'quotes' ? 'active' : ''}"><img src="/api/assets/icons/quotes.png" alt="" class="nav-icon"> Quotes</a>
       <a href="/admin/jobs" class="${activePage === 'jobs' ? 'active' : ''}"><img src="/api/assets/icons/jobs.png" alt="" class="nav-icon"> Jobs</a>
+      <a href="/admin/calendar" class="${activePage === 'calendar' ? 'active' : ''}"><img src="/api/assets/icons/calendar.png" alt="" class="nav-icon"> Calendar</a>
       <a href="/admin/customers" class="${activePage === 'customers' ? 'active' : ''}"><img src="/api/assets/icons/customers.png" alt="" class="nav-icon"> Customers</a>
       <a href="/admin/messages" class="${activePage === 'messages' ? 'active' : ''}"><img src="/api/assets/icons/messages.png" alt="" class="nav-icon"> Messages</a>
       <div class="divider"></div>
@@ -239,7 +301,7 @@ export const adminDashboard = async (c: Context) => {
       </div>
     </div>
     
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+    <div class="mobile-stack" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
       <div class="card">
         <h2>Recent Quote Requests</h2>
         <table class="table">
@@ -302,7 +364,7 @@ export const adminDashboard = async (c: Context) => {
     </div>
   `;
   
-  return c.html(adminLayout('Dashboard', content, admin));
+  return c.html(adminLayout('Dashboard', content, 'dashboard', admin));
 };
 
 export const adminCustomers = async (c: Context) => {
@@ -363,7 +425,7 @@ export const adminCustomers = async (c: Context) => {
     </div>
   `;
   
-  return c.html(adminLayout('Customers', content, admin));
+  return c.html(adminLayout('Customers', content, 'customers', admin));
 };
 
 export const adminQuotes = async (c: Context) => {
@@ -422,7 +484,7 @@ export const adminQuotes = async (c: Context) => {
     </div>
   `;
   
-  return c.html(adminLayout('Quotes', content, admin));
+  return c.html(adminLayout('Quotes', content, 'quotes', admin));
 };
 
 export const adminMessages = async (c: Context) => {
@@ -494,5 +556,5 @@ export const adminMessages = async (c: Context) => {
     </div>
   `;
   
-  return c.html(adminLayout('Messages', content, admin));
+  return c.html(adminLayout('Messages', content, 'messages', admin));
 };

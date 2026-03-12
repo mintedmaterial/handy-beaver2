@@ -217,6 +217,61 @@ export const baseStyles = `
   }
   
   footer p { color: var(--accent); }
+
+  @media (max-width: 900px) {
+    nav {
+      padding: 0.75rem 1rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .nav-brand span {
+      font-size: 1.15rem;
+    }
+
+    .nav-links {
+      width: 100%;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem 1rem;
+    }
+
+    .container {
+      padding: 1.25rem;
+    }
+
+    .section-title {
+      font-size: 2rem;
+    }
+
+    .section-subtitle {
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      padding: 1.25rem;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .nav-brand img {
+      width: 40px;
+      height: 40px;
+    }
+
+    .grid {
+      gap: 1rem;
+    }
+
+    .promo-popup {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      max-width: none;
+      width: auto;
+      padding: 1rem;
+    }
+  }
 `;
 
 export const layout = (title: string, content: string, activeNav?: string) => `

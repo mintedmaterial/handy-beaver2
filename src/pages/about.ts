@@ -6,13 +6,31 @@ const { business } = siteConfig;
 
 export const aboutPage = (c: Context) => {
   const content = `
-    <section style="padding: 4rem 2rem; text-align: center; background: linear-gradient(180deg, rgba(139, 69, 19, 0.3) 0%, transparent 100%);">
+    <style>
+      .about-hero h1 { font-size: 3rem; margin-top: 1.5rem; }
+      .about-feature-row { display: flex; align-items: center; gap: 1rem; text-align: left; }
+      .about-media { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+      .about-media-item img,
+      .about-media-item video { width: 100%; border-radius: 12px; object-fit: cover; min-height: 240px; }
+      .about-media-item p { margin-top: 0.75rem; color: #666; font-size: 0.9rem; }
+
+      @media (max-width: 900px) {
+        .about-hero h1 { font-size: 2.25rem; }
+        .about-media { grid-template-columns: 1fr; }
+      }
+
+      @media (max-width: 600px) {
+        .about-feature-row { align-items: flex-start; }
+      }
+    </style>
+
+    <section class="about-hero" style="padding: 4rem 2rem; text-align: center; background: linear-gradient(180deg, rgba(139, 69, 19, 0.3) 0%, transparent 100%);">
       <img 
         src="/api/assets/beaver-avatar.png" 
         alt="${business.name} mascot"
         style="width: 150px; height: 150px; border-radius: 50%; border: 4px solid var(--secondary); box-shadow: 0 0 30px var(--card-glow);"
       >
-      <h1 class="section-title" style="font-size: 3rem; margin-top: 1.5rem;">About ${business.name}</h1>
+      <h1 class="section-title">About ${business.name}</h1>
       <p class="section-subtitle" style="font-size: 1.25rem;">${business.tagline}</p>
     </section>
     
@@ -41,7 +59,7 @@ export const aboutPage = (c: Context) => {
           <h3 style="color: var(--primary); font-family: 'Playfair Display', serif; margin-bottom: 2rem;">Why Choose Us?</h3>
           
           <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-            <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+            <div class="about-feature-row">
               <span style="font-size: 2rem;">🛠️</span>
               <div>
                 <strong>Experienced Craftsmanship</strong>
@@ -49,7 +67,7 @@ export const aboutPage = (c: Context) => {
               </div>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+            <div class="about-feature-row">
               <span style="font-size: 2rem;">💰</span>
               <div>
                 <strong>Transparent Pricing</strong>
@@ -57,7 +75,7 @@ export const aboutPage = (c: Context) => {
               </div>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+            <div class="about-feature-row">
               <span style="font-size: 2rem;">🚗</span>
               <div>
                 <strong>We Come to You</strong>
@@ -65,13 +83,34 @@ export const aboutPage = (c: Context) => {
               </div>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+            <div class="about-feature-row">
               <span style="font-size: 2rem;">✨</span>
               <div>
                 <strong>AI Project Previews</strong>
                 <p style="color: #666; font-size: 0.9rem; margin: 0;">See your finished project before we start</p>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="container" style="margin-top: 2.5rem;">
+      <h2 class="section-title">Meet the Craft Behind the Brand</h2>
+      <p class="section-subtitle">A quick look at the person and process behind ${business.name}</p>
+      <div class="card">
+        <div class="about-media">
+          <div class="about-media-item">
+            <img src="/api/assets/portfolio/about/headshot.jpg" alt="Owner headshot" loading="lazy">
+            <p>Owner portrait from the field.</p>
+          </div>
+          <div class="about-media-item">
+            <video controls preload="metadata" playsinline>
+              <source src="/api/assets/portfolio/about/working.mov" type="video/quicktime">
+              Your browser does not support embedded video.
+            </video>
+            <p>On-site work in progress.</p>
           </div>
         </div>
       </div>
