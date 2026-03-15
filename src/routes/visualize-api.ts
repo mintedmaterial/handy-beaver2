@@ -163,8 +163,8 @@ visualizeApi.post('/generate', async (c) => {
     }
   }
   
-  // Require auth (admin OR customer)
-  if (customerId === null && !isAdmin) {
+  // Require auth: admins can run without an attached customer record
+  if (!isAdmin && customerId === null) {
     return c.json({
       success: false,
       error: 'Please sign in or request a quote to use the AI Visualizer',
@@ -373,7 +373,7 @@ Enhanced prompt:`
       httpMetadata: { contentType: 'image/jpeg' },
       customMetadata: {
         prompt,
-        customerId: String(customerId),
+        customerId: customerId === null ? 'admin' : String(customerId),
         watermarked: 'pending', // Will be processed by worker
       },
     });
